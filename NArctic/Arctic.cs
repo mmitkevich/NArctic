@@ -51,17 +51,10 @@ namespace NArctic
 			var bf = Builders<BsonDocument>.Filter;
 			var filter = bf.Eq ("symbol", symbol) & bf.Eq ("parent", parent);
 			var segments = await this._segments.FindAsync (filter);
-
-/*				.Where (x => 
-					x ["symbol"] == symbol
-					&& x ["parent"] == parent
-				).Select(x=>x["data"]).ToCursorAsync ();
-*/
-
-			Console.WriteLine ("Got cursor");
+			//Console.WriteLine ("Got cursor");
 			while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
-					Console.WriteLine ("Segment: {0}".Args(segment["segment"]));
+					//Console.WriteLine ("Segment: {0}".Args(segment["segment"]));
 					var chunk  = segment["data"].AsByteArray;
 					buf.AppendDecodedLZ4(chunk);
 				}
