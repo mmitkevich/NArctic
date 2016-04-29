@@ -31,23 +31,34 @@ namespace NArctic
 
 		public async Task<BsonDocument> ReadVersionAsync(string symbol)
 		{
+			Console.WriteLine ("read version {0}".Args (symbol));
 			IAsyncCursorSource<BsonDocument> versions = this._versions.AsQueryable ()
-				.Where (x => x ["symbol"] == "S0")
+				.Where (x => x ["symbol"] == symbol)
 				.OrderByDescending (x => x ["version"])
 				.Take(1);
-			return await versions.FirstAsync<BsonDocument>();
+			var rtn =  await versions.FirstAsync<BsonDocument>();
+			Console.WriteLine ("DONE read version {0}".Args (symbol));
+			return rtn;
 		}
 
 		public async Task<DataFrame> ReadDataFrameAsync(string symbol, BsonDocument version=null)
 		{
 			version = version ?? await ReadVersionAsync(symbol);
 			var buf = new ByteBuffer ();
-			//Console.WriteLine ("version: {0}".Args (version));
-			var segments = await this._segments.AsQueryable ()
-				.Where (x => 
+			var id = version ["_id"];
+			var parent = version.GetValue ("base_bersion_id", id);
+			Console.WriteLine ("version: {0}\nRead segments parent {1}".Args (version, parent));
+			var bf = Builders<BsonDocument>.Filter;
+			var filter = bf.Eq ("symbol", symbol) & bf.Eq ("parent", parent);
+			var segments = await this._segments.FindAsync (filter);
+
+/*				.Where (x => 
 					x ["symbol"] == symbol
-					&& x ["parent"] == version.GetValue ("base_bersion_id", version ["_id"])
-				).ToCursorAsync ();
+					&& x ["parent"] == parent
+				).Select(x=>x["data"]).ToCursorAsync ();
+*/
+
+			Console.WriteLine ("Got cursor");
 			while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
 					Console.WriteLine ("Segment: {0}".Args(segment["segment"]));
