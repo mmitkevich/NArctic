@@ -1,0 +1,11 @@
+﻿using System;
+namespace NArctic
+{
+	public class Series
+	{
+		public Series()
+		{
+		}
+	}
+}
+
