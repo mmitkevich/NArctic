@@ -123,7 +123,7 @@ namespace NumCIL
 			Whitespace (str, i);
 			int k = 0, kk;
 			if( (kk = AtChar(str,i,'[')) > 0) {
-				cur.Type = typeof(Dictionary<string,object>);
+				cur.Type = typeof(IDictionary<string,object>);
 				i += kk; k += kk;
 				int nfield = 0;
 				for(;;) {

@@ -50,7 +50,7 @@
     <Compile Include="DTypeParser.cs" />
     <Compile Include="DataFrame.cs" />
     <Compile Include="Utilities.cs" />
-    <Compile Include="CopyTable.cs" />
+    <Compile Include="Unsafe.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>

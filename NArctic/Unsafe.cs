@@ -4,8 +4,26 @@ using System.Runtime.InteropServices;
 
 namespace NumCIL
 {
-	public static class CopyTable
+	public static class Unsafe
 	{
+		public static unsafe void ColumnCopy(void *target, int target_col, int target_width, void *source, int source_col, int source_width, int count, int elsize)
+		{
+			unsafe
+			{
+				byte* src = (byte*)source;
+				byte* dst = (byte*)target;
+				src += source_col;
+				dst += target_col;
+
+				for (int i = 0; i < count; i++) {
+					for (int j = 0; j < elsize; j++)
+						dst [j] = src [j];
+					dst += target_width;
+					src += source_width;
+				}
+			}
+		}
+
 		public static unsafe void CopyColumn(double []dst, IntPtr src, int bytesPerRow, int fieldOffset)
 		{
 			fixed(double* pdst = &dst[0]) 

@@ -34,9 +34,9 @@ namespace NArctic.Tests
 			TestDType ("[('index', '<M8[ns]'), ('Open', '<f8'), ('Close', '<f8'), ('Adj Close', '<f8'), ('High', '<f8'), ('Low', '<f8'), ('Volume', '<i8')]");
 		}
 
-		public static void TestReadArctic(){
-			var driver = new MongoClient ("mongodb://localhost");
-			var db = driver.GetDatabase ("arctic_bench");
+		public static void TestReadArctic(string dbname="arctic_bench", string host="localhost"){
+			var driver = new MongoClient ("mongodb://"+host);
+			var db = driver.GetDatabase (dbname);
 
 			var arctic = new Arctic (db);
 			Stopwatch sw = new Stopwatch ();
@@ -47,10 +47,34 @@ namespace NArctic.Tests
 			Console.WriteLine ("read {0} took {1}s = {2}/sec".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds));
 		}
 
+		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true) {
+			var driver = new MongoClient ("mongodb://"+host);
+			if (purge)
+				driver.DropDatabase (dbname);
+			
+			var db = driver.GetDatabase (dbname);
+
+			var arctic = new Arctic (db);
+			Stopwatch sw = new Stopwatch ();
+			var df = new DataFrame();
+			df.Columns.Add (new []{new DateTime(2015,1,1),new DateTime(2015,1,2),new DateTime(2015,1,3),new DateTime(2015,1,4),new DateTime(2015,1,5)}, "index");
+			df.Columns.Add (new long[]{1, 2, 3, 4, 5}, "long");
+			df.Columns.Add (new double[]{1, 2, 3, 4, 5}, "double");
+			var s = df.ToString ();
+			Console.WriteLine (s);
+
+			sw.Start ();
+			var version = arctic.AppendDataFrameAsync ("S1", df).Result;
+
+			sw.Stop ();
+			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds, version));
+		}
+
 		public static void Main (string[] args)
 		{
 //			TestDTypes ();
-			TestReadArctic();
+			TestReadArctic("arctic_bench");
+			TestWriteArctic();
 			Console.WriteLine ("DONE");
 		}
 	}

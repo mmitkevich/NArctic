@@ -19,6 +19,23 @@ namespace NumCIL
 		public string Format = null;
 		public static Dictionary<Type,string> Formats = new Dictionary<Type,string> ();
 		public static string sep = ", ";
+	 
+		public static DateTime UnixEpoch = new DateTime(1970,01,01);
+
+		public static DateTime NanosToDateTime(long ns)
+		{
+			return UnixEpoch.AddTicks (ns / 100);
+		}
+
+		public static long DateTimeToNanos(DateTime dt)
+		{
+			return dt.Subtract (UnixEpoch).Ticks * 100;
+		}
+
+		public static DType DateTime64 = new DType("'<M8[ns]'");
+		public static DType Long = new DType("'<i8'");
+		public static DType Double = new DType("'<f8'");
+
 		static DType()
 		{
 			Formats [typeof(DateTime)] = "{0:yyyy-MM-dd HH:mm:ss.fff}";
@@ -54,14 +71,21 @@ namespace NumCIL
 		{
 			if (Type == null) {
 				return "null";
-			}else if (Type == typeof(List<object>)) {
+			}else if (Type == typeof(IList<object>)) {
 				string str = string.Join(DType.sep, Fields.Select(f=>f.ToString()));
 				return "[{0}]".Args(str);
-			} else if (Type == typeof(Dictionary<string, object>)) {
-				string str = string.Join(DType.sep, Fields.Select(f=>"'{0}':'{1}'".Args(f.Name, f)));
-				return "{" + str + "}";
+			} else if (Type == typeof(IDictionary<string, object>)) {
+				string str = string.Join(DType.sep, Fields.Select(f=>"('{0}','{1}')".Args(f.Name, f)));
+				return "[" + str + "]";
 			} else {
-				return Type.Name;
+				if (Type == typeof(double))
+					return "<f8";
+				else if (Type == typeof(long))
+					return "<i8";
+				else if (Type == typeof(DateTime))
+					return "<M8[ns]";
+				else
+					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
 			}
 				
 		}

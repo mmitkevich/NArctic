@@ -49,39 +49,62 @@ namespace Utilities
 
 	public class ByteBuffer
 	{
-		public byte[] Data;
+		private byte[] data;
 		public int Length;
 
-		public ByteBuffer(int capacity = 1024168)
+		public ByteBuffer(int capacity = 32)
 		{
-			Data = new byte[capacity];
+			data = new byte[capacity];
+		}
+
+		public byte[] GetBytes()
+		{
+			if (Length == data.Length)
+				return data;
+			byte[] value = new byte[Length];
+			Array.Copy (data, 0, value, 0, Length);
+			return value;
 		}
 
 		public void EnsureCapacity(int capacity)
 		{
-			if (Data.Length<capacity) {
+			if (data.Length<capacity) {
 				byte[] next = new byte[capacity * 2];
-				Buffer.BlockCopy (Data, 0, next, 0, Length);
-				Data = next;
+				Buffer.BlockCopy (data, 0, next, 0, Length);
+				data = next;
 			}
 		}
 
-		public void Append(byte[] more, int len=-1)
+		public void Append(byte[] more)
 		{
-			if (len < 0)
-				len = more.Length;
+			var len = more.Length;
 			EnsureCapacity (Length + len);
-			Buffer.BlockCopy (more, 0, Data, Length, len);
+			Buffer.BlockCopy (more, 0, data, Length, len);
 			Length += len;
 		}
 
-		public void AppendDecodedLZ4(byte[] encoded, int len=-1)
+		public ByteBuffer AppendDecompress(byte[] encoded)
 		{
-			if(len<0)
-				len = (int)((uint)encoded[0] + ((uint)encoded[1]<<8) + ((uint)encoded[2]<<16)  + ((uint)encoded[3]<<24));
+			int len = (int)((uint)encoded[0] + ((uint)encoded[1]<<8) + ((uint)encoded[2]<<16)  + ((uint)encoded[3]<<24));
 			EnsureCapacity (Length + len);
-			LZ4Codec.Decode(encoded, 4, encoded.Length-4, Data, Length, len, true);
+			LZ4Codec.Decode(encoded, 4, encoded.Length-4, data, Length, len, true);
 			Length += len;
+			return this;
+		}
+
+		public ByteBuffer AppendCompress(byte[] raw)
+		{
+			int maxlen = LZ4Codec.MaximumOutputLength (raw.Length);
+			EnsureCapacity (Length + maxlen + 4);
+			int len = LZ4Codec.Encode (raw, 0, raw.Length, data, Length + 4, maxlen);
+
+			data [Length] = (byte)(raw.Length & 0xFF);
+			data [Length+1] = (byte)((raw.Length>>8) & 0xFF);
+			data [Length+2] = (byte)((raw.Length>>16) & 0xFF);
+			data [Length+3] = (byte)((raw.Length>>24) & 0xFF);
+
+			Length += len + 4;
+			return this;
 		}
 	}
 

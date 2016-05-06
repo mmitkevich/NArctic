@@ -8,7 +8,6 @@ using System.Windows.Markup;
 using NumCIL;
 using System.Runtime.InteropServices;
 using Utilities;
-using NumCIL.Unsafe;
 using NumCIL.Boolean;
 using NumCIL.Complex128;
 using System.Collections;
@@ -19,10 +18,45 @@ using Utilities;
 
 namespace NumCIL
 {
+
+	public static class Builder
+	{
+		public static T Return<T>(T arg){
+			return arg;
+		}
+
+		public static Series<T> ToSeries<T>(this T[] data, DType dtype)
+		{
+			return new Series<T, T>(dtype, new NdArray<T>(data), Return<T>, Return<T>);
+		}
+
+		public static Series<T> ToSeries<T>(this NdArray<T> data, DType dtype)
+		{
+			return new Series<T, T>(dtype, data, Return<T>, Return<T>);
+		}
+
+
+		public static Series<DateTime> ToDateTimeSeries(this DateTime[] data)
+		{
+			return data.Select (DType.DateTimeToNanos).ToArray ().ToDateTimeSeries ();
+		}
+
+		public static Series<DateTime> ToDateTimeSeries(this long[] data)
+		{
+			return new Series<DateTime, long> (DType.DateTime64, 
+				new NdArray<long>(data), 
+				DType.NanosToDateTime, DType.DateTimeToNanos);
+		}
+	}
+
 	public abstract class Series : IEnumerable
 	{
-		public string Name {get;set;}
 		public DType DType {get;set;}
+
+		public string Name {
+			get { return DType.Name; } 
+			set { DType.Name = value; }
+		}
 
 		public abstract int Count{ get; }
 
@@ -32,50 +66,101 @@ namespace NumCIL
 
 		internal abstract object At(int index);
 
-		public static unsafe Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
+		public static unsafe void ColumnCopy(void *target, int target_col, int target_width, void *source, int source_col, int source_width, int count, int elsize)
+		{
+			unsafe
+			{
+				byte* src = (byte*)source;
+				byte* dst = (byte*)target;
+				src += source_col;
+				dst += target_col;
+
+				for (int i = 0; i < count; i++) {
+					for (int j = 0; j < elsize; j++)
+						dst [j] = src [j];
+					dst += target_width;
+					src += source_width;
+				}
+			}
+		}
+
+		public unsafe abstract void  ToBuffer (byte[] buf, DType buftype, int iheight, int icol);
+
+		public unsafe static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
 		{
 			var bytesPerRow = buftype.FieldOffset (buftype.Fields.Count);
 			var fieldOffset = buftype.FieldOffset (icol);
-			Series rtn = null;
-			var gh = GCHandle.Alloc(buf, GCHandleType.Pinned);
-			try{
-				IntPtr adr = gh.AddrOfPinnedObject();
-				if (buftype.Fields[icol].Type == typeof(double)) {
-					double[] data = new double[iheight];
-					CopyTable.CopyColumn ((double[])data, adr, bytesPerRow, fieldOffset);
-					return new Series<double, double>(buftype.Fields[icol], new NdArray<double>(data), g=>g, s=>s);
-				}else if (buftype.Fields[icol].Type == typeof(long)) {
-					long [] data = new long[iheight];
-					CopyTable.CopyColumn ((long[])data, adr, bytesPerRow, fieldOffset);
-					return new Series<long, long>(buftype.Fields[icol], new NdArray<long>(data), g=>g, s=>s);
-				}else if (buftype.Fields[icol].Type == typeof(DateTime)) {
-					long [] data = new long[iheight];
-					CopyTable.CopyColumn ((long[])data, adr, bytesPerRow, fieldOffset);
-					var epoch = new DateTime(1970,01,01);
-					return new Series<DateTime, long>(buftype.Fields[icol], new NdArray<long>(data), g=>epoch.AddTicks(g/100), s=>s.Subtract(epoch).Ticks*100);
-				}else
-					throw new InvalidOperationException("Failed decode {0} type".Args(buftype.Fields[icol].Type));
-				return rtn;
-			}finally{
-				gh.Free ();
-			}
+			var dtype = buftype.Fields[icol];
+			if (buftype.Fields [icol].Type == typeof(double)) {
+				var data = new double[iheight];
+				int elsize = sizeof(double);
+				fixed(void *src = &buf[0])
+					fixed(void *dst = &data[0])
+						ColumnCopy(dst, 0, elsize, src, fieldOffset, bytesPerRow, iheight, elsize);
+				return data.ToSeries (dtype);
+			}else if (buftype.Fields[icol].Type == typeof(long)) {
+				var data = new long[iheight];
+				int elsize = sizeof(long);
+				fixed(void *src = &buf[0])
+					fixed(void *dst = &data[0])
+						ColumnCopy(dst, 0, elsize, src, fieldOffset, bytesPerRow, iheight, elsize);
+				return data.ToSeries (dtype);
+			}else if (buftype.Fields[icol].Type == typeof(DateTime)) {
+				var data = new long[iheight];
+				int elsize = sizeof(long);
+				fixed(void *src = &buf[0])
+					fixed(void *dst = &data[0])
+						ColumnCopy(dst, 0, elsize, src, fieldOffset, bytesPerRow, iheight, elsize);
+				return data.ToDateTimeSeries();
+			}else
+				throw new InvalidOperationException("Failed decode {0} type".Args(buftype.Fields[icol].Type));
+		}
+
+		public abstract Series this [Range range] {
+			get;
 		}
 
 		IEnumerator IEnumerable.GetEnumerator ()
 		{
 			throw new NotImplementedException ();
 		}
+
+		public static implicit operator Series (long[] data) {
+			return data.ToSeries (DType.Long);
+		}
+
+		public static implicit operator Series (double[] data) {
+			return data.ToSeries (DType.Double);
+		}
+
+		public static implicit operator Series (DateTime[] data) {
+			return data.ToDateTimeSeries ();
+		}
+
+		public static implicit operator Series (NdArray<long> data) {
+			return data.ToSeries (DType.Long);
+		}
+
+		public static implicit operator Series (NdArray<double> data) {
+			return data.ToSeries (DType.Double);
+		}
 	}
 
-	public abstract class Series<T>:Series, IEnumerable<T>
+	public abstract class Series<T> : Series, IEnumerable<T>
 	{
 		public abstract IEnumerator<T> GetEnumerator ();
+
+		public static T NoConv<T>(T val) {
+			return val;
+		}
 
 		IEnumerator IEnumerable.GetEnumerator ()
 		{
 			return ((IEnumerable<T>)this).GetEnumerator ();
 		}
+
 		public abstract T this[int index]{get;set;}
+
 	}
 
 	public class Series<T,Q> : Series<T>
@@ -120,6 +205,39 @@ namespace NumCIL
 			}
 		}
 
+		public override Series this [Range range] {
+			get {
+				return new Series<T,Q> (DType, Values[range], Getter, Setter);
+			}
+		}
+
+		public unsafe override void  ToBuffer(byte[] buf, DType buftype, int iheight, int icol)
+		{
+			var bytesPerRow = buftype.FieldOffset (buftype.Fields.Count);
+			var fieldOffset = buftype.FieldOffset (icol);
+			var dtype = buftype.Fields[icol];
+			if (buftype.Fields [icol].Type == typeof(double)) {
+				double[] data = (this.Values as NdArray<double>).DataAccessor.AsArray();
+				int elsize = sizeof(double);
+				fixed(void *dst = &buf[0])
+					fixed(void *src = &data[0])
+						ColumnCopy(dst, fieldOffset, bytesPerRow, src, 0, elsize, iheight, elsize);
+			}else if (buftype.Fields[icol].Type == typeof(long)) {
+				long[] data = (this.Values as NdArray<long>).DataAccessor.AsArray();
+				int elsize = sizeof(long);
+				fixed(void *dst = &buf[0])
+				fixed(void *src = &data[0])
+				ColumnCopy(dst, fieldOffset, bytesPerRow, src, 0, elsize, iheight, elsize);
+			}else if (buftype.Fields[icol].Type == typeof(DateTime)) {
+				long[] data = (this.Values as NdArray<long>).DataAccessor.AsArray();
+				int elsize = sizeof(long);
+				fixed(void *dst = &buf[0])
+				fixed(void *src = &data[0])
+				ColumnCopy(dst, fieldOffset, bytesPerRow, src, 0, elsize, iheight, elsize);
+			}else
+				throw new InvalidOperationException("Failed decode {0} type".Args(buftype.Fields[icol].Type));
+		}
+
 		public override string ToString ()
 		{
 			IEnumerable<T> itr = (IEnumerable<T>)this;
@@ -137,8 +255,16 @@ namespace NumCIL
 
 		IEnumerator IEnumerable.GetEnumerator () { return Series.GetEnumerator (); }
 
-		public int Add(Series s){
+		public DType DType = new DType(typeof(IDictionary<string,object>));
+
+		public event Action<SeriesList, IEnumerable<Series>, IEnumerable<Series>> SeriesListChanged;
+
+		public int Add(Series s, string name=null){
+			if (name != null)
+				s.Name = name;
 			this.Series.Add (s);
+			SeriesListChanged(this, new Series[]{s}, new Series[0]);
+			this.DType.Fields.Add (s.DType);
 			return this.Series.Count - 1;
 		}
 
@@ -192,6 +318,21 @@ namespace NumCIL
 			return ToString (5, 5);
 		}
 
+		public void OnColumnsChanged(SeriesList series, IEnumerable<Series> removed, IEnumerable<Series> added)
+		{
+			Series[] rm = removed.ToArray ();
+			if(rm.Length==0)
+				foreach (var s in added) {
+					Count = Math.Max (Count, s.Count);
+				}
+			else {
+				int count = 0;
+				foreach (var s in series)
+					count = Math.Max (count, s.Count);
+				Count = count;
+			}
+		}
+
 		public string ToString (int head, int tail)
 		{
 			var sb = new StringBuilder ();
@@ -209,17 +350,44 @@ namespace NumCIL
 	{
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
-		public Shape Shape;
 
-		public DataFrame (Shape shape)
-		{
-			Shape = shape;
-			Rows = new RowsList (this);
+		public DType DType {
+			get { return Columns.DType; } 
 		}
+
+		public DataFrame()
+		{
+			Rows = new RowsList (this);
+			Columns.SeriesListChanged += this.OnColumnsChanged;
+		}
+
+		public DataFrame(IDictionary<string, Series> series)
+			: this()
+		{
+			foreach (var x in series) {
+				this.Columns.Add (x.Value, x.Key);
+			}
+		}
+
+		public void OnColumnsChanged(SeriesList series, IEnumerable<Series> removed, IEnumerable<Series> added)
+		{
+			Rows.OnColumnsChanged (series, removed, added);
+		}
+
+		public DataFrame this [Range range] {
+			get {
+				var df = new DataFrame ();
+				foreach (var col in df.Columns) {
+					df.Columns.Add (col [range]);
+				}
+				return df;
+			}
+		}
+
 
 		public static DataFrame FromBuffer(byte[] buf, DType buftype, int iheight)
 		{
-			var df = new DataFrame(new Shape(new long[]{iheight, buftype.Fields.Count}));
+			var df = new DataFrame();
 			for (int i = 0; i < buftype.Fields.Count; i++) {
 				var s = NumCIL.Series.FromBuffer (buf, buftype, iheight, i); 
 				s.Name = buftype.Name ?? "[{0}]".Args (i);
@@ -229,9 +397,23 @@ namespace NumCIL
 			return df;
 		}
 
+		public byte[] ToBuffer() 
+		{
+			byte[] buf = new byte[this.Rows.Count*this.DType.FieldOffset(this.DType.Fields.Count)];
+			for (int i = 0; i < Columns.Count; i++) {
+				Columns [i].ToBuffer(buf, this.DType, this.Rows.Count, i);
+			}
+			return buf;
+		}
+
 		public Series this[int index] 
 		{
-			get{ return this.Columns [index];}
+			get{ return this.Columns [index]; }
+		}
+
+		public int Add(Series series, string name=null)
+		{
+			return this.Columns.Add (series, name);
 		}
 
 		public override string ToString ()
