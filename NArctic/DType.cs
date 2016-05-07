@@ -9,6 +9,31 @@ using Utilities;
 
 namespace NumCIL
 {
+	public static class DateTime64
+	{
+		public static DateTime UnixEpoch = new DateTime(1970,01,01);
+
+		public static DateTime ToDateTime(long ns)
+		{
+			return UnixEpoch.AddTicks (ns / 100);
+		}
+
+		public static TimeSpan ToTimeSpan(long ns)
+		{
+			return TimeSpan.FromTicks (ns / 100);
+		}
+
+		public static long ToDateTime64(this DateTime dt)
+		{
+			return dt.Subtract (UnixEpoch).Ticks * 100;
+		}
+
+		public static long ToDateTime64(this TimeSpan dt)
+		{
+			return dt.Ticks * 100;
+		}
+	}
+
 	public class DType
 	{
 		public Type Type;
@@ -20,18 +45,6 @@ namespace NumCIL
 		public static Dictionary<Type,string> Formats = new Dictionary<Type,string> ();
 		public static string sep = ", ";
 	 
-		public static DateTime UnixEpoch = new DateTime(1970,01,01);
-
-		public static DateTime NanosToDateTime(long ns)
-		{
-			return UnixEpoch.AddTicks (ns / 100);
-		}
-
-		public static long DateTimeToNanos(DateTime dt)
-		{
-			return dt.Subtract (UnixEpoch).Ticks * 100;
-		}
-
 		public static DType DateTime64 = new DType("'<M8[ns]'");
 		public static DType Long = new DType("'<i8'");
 		public static DType Double = new DType("'<f8'");

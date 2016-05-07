@@ -51,19 +51,29 @@ namespace NArctic
 			version = version ?? await ReadVersionAsync(symbol);
 			var buf = new ByteBuffer ();
 			var id = version ["_id"];
-			var parent = version.GetValue ("base_bersion_id", id);
+			var parent = version.GetValue ("base_version_id");
+			if (parent == null)
+				parent = id;
 			Console.WriteLine ("version: {0}\nRead segments parent {1}".Args (version, parent));
 			var bf = Builders<BsonDocument>.Filter;
 			var filter = bf.Eq ("symbol", symbol) & bf.Eq ("parent", parent);
 			var segments = await this._segments.FindAsync (filter);
 			Console.WriteLine ("Got cursor");
+			int segcount = 0;
 			while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
 					Console.WriteLine ("Segment: {0}".Args(segment["segment"]));
 					var chunk  = segment["data"].AsByteArray;
-					buf.AppendDecompress(chunk);
+					if (segment ["compressed"].AsBoolean)
+						buf.AppendDecompress (chunk);
+					else
+						buf.Append (chunk);
+					segcount++;
 				}
 			}
+			if (segcount == 0)
+				throw new InvalidOperationException ("No segments found for {0}".Args (parent));
+			
 			var nrows = version ["up_to"].AsInt32;
 			var dtype = version ["dtype"].AsString;
 			var buftype = new DType (dtype);
@@ -74,7 +84,6 @@ namespace NArctic
 		public async Task<BsonDocument> AppendDataFrameAsync(string symbol, DataFrame df)
 		{
 			var version = await GetNewVersion (symbol);
-			int segment_offset = 0;
 
 			var bf = Builders<BsonDocument>.Filter;
 
@@ -90,16 +99,20 @@ namespace NArctic
 				{ "columns", new BsonArray(df.Columns.Select(c=>c.Name).ToList()) }
 			};
 			version ["type"] = "pandasdf";
-			version ["segment_count"] = previous_version != null ? previous_version ["segment_count"].AsInt32 + 1 : 1;
+			version ["segment_count"] =  previous_version != null ? previous_version ["segment_count"].AsInt32 + 1 : 1;
+			version ["append_count"] = previous_version != null ? previous_version ["append_count"].AsInt32 + 1 : 0;
 
 			var  segment_index = new BsonArray();
+			int segment_offset = 0;
 
 			//version ["base_sha"] = version ["sha"];
 			if (previous_version != null) {
-				segment_offset = previous_version ["segment"].AsInt32 + 1;
 				segment_index = previous_version ["segment_index"].AsBsonArray;
+				segment_offset = previous_version ["up_to"].AsInt32;
 			}
 
+			segment_index.Add (segment_offset);
+			version ["segment_index"] = segment_index;
 			version ["up_to"] = segment_offset + df.Rows.Count;
 
 			var buf = new ByteBuffer();
@@ -136,9 +149,12 @@ namespace NArctic
 			var bu = Builders<BsonDocument>.Update;
 
 			var version_num = await _version_numbers.FindOneAndUpdateAsync (
-				                       bf.Eq ("symbol", symbol),
-				                       bu.Inc ("version", 1),
-				                       new FindOneAndUpdateOptions<BsonDocument> { IsUpsert = true }
+				                       	bf.Eq ("symbol", symbol),
+				                       	bu.Inc ("version", 1),
+									   	new FindOneAndUpdateOptions<BsonDocument> { 
+											IsUpsert = true, 
+											ReturnDocument = ReturnDocument.After 
+										}
 			                       );
 
 			version ["version"] = version_num!=null ? version_num["version"] : 1;

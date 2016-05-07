@@ -63,9 +63,12 @@ namespace NArctic.Tests
 			var s = df.ToString ();
 			Console.WriteLine (s);
 
+			var df2 = df.Clone ();
+			df2 [0].AsDateTime.Values += TimeSpan.FromDays (30).ToDateTime64 ();
+			Console.WriteLine ("added 1 day:\n{0}".Args (df2));
 			sw.Start ();
 			var version = arctic.AppendDataFrameAsync ("S1", df).Result;
-
+			var version2 = arctic.AppendDataFrameAsync ("S1", df2	).Result;
 			sw.Stop ();
 			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds, version));
 		}
@@ -75,6 +78,7 @@ namespace NArctic.Tests
 //			TestDTypes ();
 			TestReadArctic("arctic_bench");
 			TestWriteArctic();
+
 			Console.WriteLine ("DONE");
 		}
 	}
