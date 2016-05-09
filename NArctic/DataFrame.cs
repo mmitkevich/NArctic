@@ -16,7 +16,6 @@ using MongoDB.Driver.Core.WireProtocol.Messages;
 using MongoDB.Bson;
 using Utilities;
 using NumCIL.Double;
-
 namespace NumCIL
 {
 
@@ -42,9 +41,19 @@ namespace NumCIL
 			return new Double.Series(new Double.NdArray(data));
 		}
 
+		public static Double.Series ToDoubleSeries(this Double.NdArray values)
+		{
+			return new Double.Series(values);
+		}
+
 		public static Int64.Series ToLongSeries(this long[] data)
 		{
 			return new Int64.Series(new Int64.NdArray(data));
+		}
+
+		public static Int64.Series ToLongSeries(this Int64.NdArray values)
+		{
+			return new Int64.Series(values);
 		}
 
 		public static Time.Series ToDateTimeSeries(this DateTime[] data)
@@ -54,8 +63,14 @@ namespace NumCIL
 
 		public static Time.Series ToDateTimeSeries(this long[] data)
 		{
-			return new Time.Series(new NdArray<long>(data));
+			return new Time.Series(new Int64.NdArray(data));
 		}
+
+		public static Time.Series ToDateTimeSeries(this Int64.NdArray values)
+		{
+			return new Time.Series(values);
+		}
+
 	}
 
 	public abstract class Series : IEnumerable
@@ -68,6 +83,7 @@ namespace NumCIL
 		}
 
 		public abstract int Count{ get; }
+
 
 		public Series<T> As<T>() {
 			return this as Series<T>;
@@ -245,6 +261,9 @@ namespace NumCIL
 	}
 
 	namespace Time {
+		using NdArray = Int64.NdArray;
+		using Generate = Int64.Generate;
+
 		public class Series : Series<DateTime>
 		{
 			public Int64.NdArray Values {get;set;}
@@ -253,6 +272,12 @@ namespace NumCIL
 			{
 				DType = DType.DateTime64;
 				Values = values;
+			}
+
+			public static Series DateTimeRange(DateTime start, DateTime end, long count)
+			{
+				var np = Generate.Range (new Shape (count)) * (end - start).ToDateTime64 () / count;
+				return np.ToDateTimeSeries ();
 			}
 
 			public static implicit operator Series(Int64.NdArray values) {
@@ -349,6 +374,10 @@ namespace NumCIL
 
 			public static implicit operator Series(NdArray values) {
 				return new Series (values);
+			}
+
+			public static Series Random(double min, double max) {
+				return null;
 			}
 
 			public static implicit operator NdArray(Series series) {
@@ -516,7 +545,7 @@ namespace NumCIL
 		}
 	}
 
-	public class SeriesList : IEnumerable<Series>
+	public class SeriesList : IEnumerable<NumCIL.Series>
 	{
 		protected List<Series> Series = new List<Series> ();
 
@@ -617,7 +646,7 @@ namespace NumCIL
 		}
 	}
 
-	public class DataFrame 
+	public class DataFrame : IEnumerable<Series>
 	{
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
@@ -703,6 +732,16 @@ namespace NumCIL
 			sb.Append ("\n");
 			sb.Append (Rows.ToString ());
 			return sb.ToString ();
+		}
+
+		public IEnumerator<Series> GetEnumerator ()
+		{
+			return this.Columns.GetEnumerator();
+		}
+
+		IEnumerator IEnumerable.GetEnumerator ()
+		{
+			return this.Columns.GetEnumerator();
 		}
 	}
 }

@@ -6,6 +6,7 @@ using NArctic;
 using NumCIL;
 using MongoDB.Driver;
 using System.Diagnostics;
+using System.Threading;
 
 namespace NArctic.Tests
 {
@@ -47,6 +48,14 @@ namespace NArctic.Tests
 			Console.WriteLine ("read {0} took {1}s = {2}/sec".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds));
 		}
 
+		public static DataFrame RandomWalk(DateTime start, DateTime stop, int count)
+		{
+			var df = new DataFrame { 
+				NumCIL.Time.Series.DateTimeRange(start, stop, count)
+			};
+			return df;
+		}
+
 		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true) {
 			var driver = new MongoClient ("mongodb://"+host);
 			if (purge)
@@ -76,8 +85,9 @@ namespace NArctic.Tests
 		public static void Main (string[] args)
 		{
 //			TestDTypes ();
-			TestReadArctic("arctic_bench");
-			TestWriteArctic();
+			TestWriteArctic("arctic_net");
+			TestReadArctic("arctic_net");
+
 
 			Console.WriteLine ("DONE");
 		}
