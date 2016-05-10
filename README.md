@@ -10,6 +10,11 @@ So if you append some time series, old versions are not kept.
 
 For usage examples see `NArctic.Tests/Program.cs`
 
+## Performance
+
+Original python/numpy arctic had performance about 4 million reads per second on my i7 ssd laptop.
+Ported .net version performs 2 times slower, about 2 million reads per second.
+
 ## Dependencies:
 
 [NumCIL](https://github.com/bh107/bohrium/tree/master/bridge/NumCIL/NumCIL))
