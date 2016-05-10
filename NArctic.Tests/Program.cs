@@ -164,11 +164,14 @@ namespace NArctic.Tests
 				.WriteTo.Console()
 				.CreateLogger();
 
-            TestReflection();
             TestDTypes ();
+
+            TestCircularDataframe();
+
+            TestReflection();
+
             TestWriteArctic("arctic_net",purge:false,del:true);
             TestReadArctic("arctic_net");
-            TestCircularDataframe();
 
 			Console.WriteLine ("DONE");
 		}
