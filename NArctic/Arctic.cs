@@ -102,6 +102,11 @@ namespace NArctic
 			return rtn.DeletedCount;
 		}
 
+        public BsonDocument Append(string symbol, DataFrame df, int chunksize = 0)
+        {
+            return this.AppendAsync(symbol, df, chunksize).Result;
+        }
+
 		public async Task<BsonDocument> AppendAsync(string symbol, DataFrame df, int chunksize=0)
 		{
             if(chunksize>0 && df.Rows.Count>chunksize)
