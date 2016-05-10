@@ -65,7 +65,7 @@ namespace NArctic
 			while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
 #if DEBUG
-					Console.WriteLine ("read segment: {0}".Args(segment));
+					//Console.WriteLine ("read segment: {0}".Args(segment));
 #endif
 					var chunk  = segment["data"].AsByteArray;
 					if (segment ["compressed"].AsBoolean)
@@ -91,8 +91,20 @@ namespace NArctic
 		internal static UpdateDefinitionBuilder<BsonDocument> BU {get{ return Builders<BsonDocument>.Update;} }
 		internal static UpdateOptions Upsert = new UpdateOptions{ IsUpsert = true };
 
-		public async Task<BsonDocument> AppendDataFrameAsync(string symbol, DataFrame df)
+		public async Task<BsonDocument> AppendDataFrameAsync(string symbol, DataFrame df, int chunksize=0)
 		{
+            if(chunksize>0 && df.Rows.Count>chunksize)
+            {
+                var rng = Range.R(0, chunksize - 1);
+                BsonDocument ver = null;
+                while (rng.First<df.Rows.Count) {
+                    var chunk = df[rng];
+                    ver = await AppendDataFrameAsync(symbol, chunk);
+                    rng = Range.R(rng.First + chunksize, rng.Last + chunksize);
+                }
+                return ver;
+            }
+
 			var version = await GetNewVersion (symbol, await ReadVersionAsync(symbol));
 
 			var previous_version = await (_versions.AsQueryable ()
@@ -149,7 +161,7 @@ namespace NArctic
 				//{"parent", new BsonArray{ version["_id"] }},
 			};
 #if DEBUG
-			Console.WriteLine ("new segment: {0}".Args (segment));
+			//Console.WriteLine ("new segment: {0}".Args (segment));
 			Console.WriteLine ("new version: {0}".Args (version));
 #endif
 			await _segments.InsertOneAsync(segment);

@@ -156,7 +156,7 @@ namespace NArctic
 		public DataFrame this [Range range] {
 			get {
 				var df = new DataFrame ();
-				foreach (var col in df.Columns) {
+				foreach (var col in this.Columns) {
 					df.Columns.Add (col[range]);
 				}
 				return df;

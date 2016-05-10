@@ -3,7 +3,7 @@
 [Oo]bj/
 [Dd]ebug/
 [Rr]elease/
-
+NumCIL/buildsupport/*
 # Visual Studio cruft
 *.[Cc]ache
 *.sln.cache

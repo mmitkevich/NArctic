@@ -58,6 +58,10 @@ namespace NArctic
 			return new Series<double> (f(s.Values));
 		}
 
+        public static TimeSpan Mul(this TimeSpan ts, double x)
+        {
+            return new TimeSpan((long)(ts.Ticks * x));
+        }
 	}
 
 	public abstract class Series : IEnumerable

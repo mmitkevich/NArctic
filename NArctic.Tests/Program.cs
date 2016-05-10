@@ -55,6 +55,7 @@ namespace NArctic.Tests
 
 		public static DataFrame RandomWalk(int count, DateTime start, DateTime stop)
 		{
+            Console.WriteLine("RandomWalk generating {0}".Args(count));
 			var df = new DataFrame { 
 				Series.DateTimeRange(count, start, stop),
 				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-5).CumSum().Exp())
@@ -76,10 +77,13 @@ namespace NArctic.Tests
 			Console.WriteLine ("and append dataframe:\n{0}".Args (df2));
 			return df;
 		}
-
-		public static DataFrame RandomDataFrame(DateTime start=default(DateTime), int count=100000) {
+        //public const int SIZE = 24 * 60 * 60 * 365;
+        public const int SIZE = 1000000;
+        public const int CHUNKSIZE = 100000;
+		public static DataFrame RandomDataFrame(DateTime start=default(DateTime), TimeSpan delta = default(TimeSpan), int count=SIZE) {
 			start = start == default(DateTime) ? DateTime.Now : start;
-			return RandomWalk (count, start, start.AddDays(count));
+            delta = delta == default(TimeSpan) ? TimeSpan.FromSeconds(1): delta;
+			return RandomWalk (count, start, start+delta.Mul(count));
 		}
 
 		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true, string symbol="S1") {
@@ -96,8 +100,8 @@ namespace NArctic.Tests
 
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
-			var version = arctic.AppendDataFrameAsync (symbol, df).Result;
-			var version2 = arctic.AppendDataFrameAsync (symbol, df2	).Result;
+			var version = arctic.AppendDataFrameAsync (symbol, df, CHUNKSIZE).Result;
+			var version2 = arctic.AppendDataFrameAsync (symbol, df2, CHUNKSIZE).Result;
 			sw.Stop ();
 			long rows = df.Rows.Count + df2.Rows.Count;
 			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (rows, sw.Elapsed.TotalSeconds, rows/sw.Elapsed.TotalSeconds, version));
