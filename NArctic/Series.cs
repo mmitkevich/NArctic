@@ -42,7 +42,7 @@ namespace NArctic
 			NumCIL.Double.NdArray rtn = array.Copy();
 			for(int i=0; i<rtn.Dimension(); i++) {
 				start += rtn.Value[i];
-				rtn[i] = start;
+				rtn.Value[i] = start;
 			}
 			return rtn;
 		}
@@ -124,7 +124,10 @@ namespace NArctic
 		public static BaseSeries<DateTime> DateTimeRange(int count, DateTime start, DateTime end)
 		{
 			var delta = (end - start).ToDateTime64 () / count;
-			return new Series<DateTime, long> (new NdArray<long>(new Shape(count)).Fill(i=>start.ToDateTime64()+delta*i),
+            var r = new NdArray<long>(new Shape(count));
+            for (int i = 0; i < r.Dimension(); i++)
+                r.Value[i] = start.ToDateTime64() + delta * i;
+            return new Series<DateTime, long> (r,
 				getter:DateTime64.ToDateTime, 
 				setter:DateTime64.ToDateTime64);
 		}

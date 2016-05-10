@@ -122,7 +122,7 @@ namespace NArctic.Tests
 			
 //			TestDTypes ();
 			TestWriteArctic("arctic_net",purge:false,del:true);
-			TestReadArctic("arctic_bench",symbol:"S0");
+			TestReadArctic("arctic_net");
 
 
 			Console.WriteLine ("DONE");
