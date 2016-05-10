@@ -186,6 +186,8 @@ namespace NArctic
 	public abstract class BaseSeries<T> : Series, IList<T> 
 	{
 		public abstract T this [int index]{ get; set;}
+        private int Head;
+        private int Tail;
 
 		public BaseSeries(DType dtype){
 			DType = dtype;
@@ -201,8 +203,43 @@ namespace NArctic
 			}
 		}
 
-		#region IList<T>
-		public virtual IEnumerator<T> GetEnumerator () {
+        public bool TryEnqueue(T item)
+        {
+            int next = (Head + 1) % Count;
+            if (next == Tail)
+                return false;
+            int head = Head;
+            Head = next;
+            this[head] = item;
+            return true;
+        }
+
+        public bool TryDequeue(out T item)
+        {
+            if (Head == Tail) {
+                item = default(T);
+                return false;
+            }
+            int tail = Tail;
+            Tail = (Tail + 1) % Count;
+            item = this[tail];
+            return false;
+        }
+
+        public int QueueLength
+        {
+            get
+            {
+                int used = (Head - Tail);
+                if (used < 0)
+                    used = Head + Count - Tail;
+                return used;
+            }
+        }
+
+
+        #region IList<T>
+        public virtual IEnumerator<T> GetEnumerator () {
 			for (int i = 0; i < Count; i++)
 				yield return this [i];
 		}
@@ -224,7 +261,7 @@ namespace NArctic
 
 		public void Add (T item)
 		{
-			throw new NotSupportedException ();
+            TryEnqueue(item);
 		}
 
 		public void Clear ()
@@ -349,6 +386,11 @@ namespace NArctic
 			}
 		}
 
+        public Series(int count) : base(null)
+        {
+            Values = new NdArray<T>(new Shape(count));
+        }
+
 		public Series(NdArray<T> values, DType dtype=null) : base(dtype)
 		{
 			Values = values;
@@ -358,6 +400,9 @@ namespace NArctic
 		{
 		}
 
+        public Series(IEnumerable<T> data) : this(new NdArray<T>(data.ToArray()))
+        {
+        }
 
 		public static implicit operator Series<T>(NdArray<T> values) {
 			return new Series<T> (values);

@@ -113,17 +113,63 @@ namespace NArctic.Tests
 			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (rows, sw.Elapsed.TotalSeconds, rows/sw.Elapsed.TotalSeconds, version));
 		}
 
+        public static void TestCircularDataframe()
+        {
+            var df = new DataFrame(10, typeof(double), typeof(long));
+            for(int i=0;i<20;i++)
+            {
+                var head = df.Rows.Enqueue((d, r) => d[0].AsDouble.Value[r] = i);
+                var tail = df.Rows.Dequeue();
+                Console.WriteLine("step {0}\n{1}".Args(i,df));
+            }
+        }
+
+        class TestClass
+        {
+            public double Dbl { get; set; }
+            public long Lng { get; set; }
+
+            public override string ToString()
+            {
+                return "TestClass(Dbl:{0}, Lng:{1})".Args(Dbl, Lng);
+            }
+        }
+
+        public static DataFrame TestReflection(int count=100000)
+        {
+            var tf = new TypedFrame<TestClass>(count);
+            for (int i = 0; i < tf.Count; i++)
+            {
+                tf[i] = new TestClass { Dbl = 10.5*i, Lng = i };
+            }
+
+            tf.Enqueue(new TestClass { Dbl = 1000, Lng = 2222 });
+            tf.Enqueue(new TestClass { Dbl = 1001, Lng = 2222 });
+
+            Console.WriteLine(tf.DataFrame);
+            Console.WriteLine("tf[5]="+tf[5]);
+            Console.WriteLine("tf.dequeue="+tf.Dequeue());
+
+            var tfx = new TypedFrame<TestClass>(tf.DataFrame);
+
+            Console.WriteLine("tfx[0]="+tfx[0]);
+
+            return tf.DataFrame;
+        }
+
 		public static void Main (string[] args)
 		{
 			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
 				.MinimumLevel.Debug()
 				.WriteTo.Console()
 				.CreateLogger();
-			
-//			TestDTypes ();
-			TestWriteArctic("arctic_net",purge:false,del:true);
-			TestReadArctic("arctic_net");
 
+            TestReflection();
+            //			TestDTypes ();
+            //TestWriteArctic("arctic_net",purge:false,del:true);
+            //TestReadArctic("arctic_net");
+
+            //TestCircularDataframe();
 
 			Console.WriteLine ("DONE");
 		}
