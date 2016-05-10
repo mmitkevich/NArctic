@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -53,11 +53,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FastReflection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Arctic.cs" />
     <Compile Include="DType.cs" />
     <Compile Include="DTypeParser.cs" />
     <Compile Include="DataFrame.cs" />
+    <Compile Include="TypedFrame.cs" />
     <Compile Include="Utilities.cs" />
     <Compile Include="MetaNumerics.cs" />
     <Compile Include="Conversions.cs" />

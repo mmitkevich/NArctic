@@ -36,7 +36,8 @@ namespace NArctic
 			if (name != null)
 				s.Name = name;
 			this.Series.Add (s);
-			SeriesListChanged(this, new Series[]{s}, new Series[0]);
+            if(SeriesListChanged!=null)
+			    SeriesListChanged(this, new Series[]{s}, new Series[0]);
 			this.DType.Fields.Add (s.DType);
 			return this.Series.Count - 1;
 		}
@@ -64,11 +65,57 @@ namespace NArctic
 	{
 		protected DataFrame df;
 		public int Count;
+        private int Head;    // Free index (write to it)
+        private int Tail;    // First used index (read from it)
 
 		public RowsList(DataFrame df) 
 		{
 			this.df = df;
+            this.Head = 0;
+            this.Tail = 0;
 		}
+
+        public DataFrame Slice(Range rng)
+        {
+            var rtn = new DataFrame();
+            foreach (var col in df.Columns)
+            {
+                rtn.Columns.Add(col[rng]);
+            }
+            return rtn;
+        }
+
+        public int Enqueue(Action<DataFrame, int> fill=null)
+        {
+            int next = (Head + 1) % Count;
+            if (next == Tail)
+                return -1;
+            int head = Head;
+            Head = next;
+            if (fill != null)
+                fill(this.df, head);
+            return head;
+        }
+
+        public int Dequeue()
+        {
+            if (Head == Tail)
+                return -1;
+            int tail = Tail;
+            Tail = (Tail + 1) % Count;
+            return tail;
+        }
+
+        public int QueueLength
+        {
+            get
+            {
+                int used = (Head - Tail);
+                if (used < 0)
+                    used = Head + Count - Tail;
+                return used;
+            }
+        }
 
 		public object[] this[int row] 
 		{
@@ -96,7 +143,8 @@ namespace NArctic
 			Series[] rm = removed.ToArray ();
 			if(rm.Length==0)
 				foreach (var s in added) {
-					Count = Math.Max (Count, s.Count);
+                    if (s.Count > Count)
+                        Count = s.Count;
 				}
 			else {
 				int count = 0;
@@ -124,7 +172,7 @@ namespace NArctic
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
 
-		public DType DType {
+        public DType DType {
 			get { return Columns.DType; } 
 		}
 
@@ -142,6 +190,19 @@ namespace NArctic
 			}
 		}
 
+        public DataFrame(int count, params Type[] types) 
+            : this()
+        {
+            foreach(var t in types)
+            {
+                if (t == typeof(double))
+                    Columns.Add(new Series<double>(count));
+                else if (t == typeof(long))
+                    Columns.Add(new Series<long>(count));
+                else throw new ArgumentException("Type {0} not supported".Args(t));
+            }
+        }
+
 		public DataFrame Clone() 
 		{
 			var df = new DataFrame (this.Columns.Select(x=>x.Clone()));
@@ -155,14 +216,9 @@ namespace NArctic
 
 		public DataFrame this [Range range] {
 			get {
-				var df = new DataFrame ();
-				foreach (var col in this.Columns) {
-					df.Columns.Add (col[range]);
-				}
-				return df;
+                return Rows.Slice(range);
 			}
 		}
-
 
 		public static DataFrame FromBuffer(byte[] buf, DType buftype, int iheight)
 		{
