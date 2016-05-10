@@ -9,7 +9,7 @@ using System.Collections;
 
 namespace Utilities
 {
-	public static class String
+	public static class StringMixin
 	{
 		public static string Args(this string fmt, params object[] args)
 		{
@@ -25,7 +25,7 @@ namespace Utilities
 		}
 	}
 
-	public static class Mongo
+	public static class MongoMixin
 	{
 		public static string ToString(this IList<BsonDocument> lst, string sep)
 		{

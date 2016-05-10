@@ -4,10 +4,12 @@ using System.Security.Cryptography;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+
 using NArctic;
 using Utilities;
+using System.Runtime.InteropServices;
 
-namespace NumCIL
+namespace NArctic
 {
 	public static class DateTime64
 	{
@@ -72,6 +74,30 @@ namespace NumCIL
 			for (int i = 0; i < ifield; i++)
 				offset += Fields [i].Size;
 			return offset;
+		}
+
+		public void ToBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
+			var bytesPerRow = this.FieldOffset (this.Fields.Count);
+			var fieldOffset = this.FieldOffset (icol);
+			var dtype = this.Fields[icol];
+			int elsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+			GCHandle ghsrc = GCHandle.Alloc (data, GCHandleType.Pinned);
+			GCHandle ghdst = GCHandle.Alloc (buf, GCHandleType.Pinned);
+			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), fieldOffset, bytesPerRow, ghsrc.AddrOfPinnedObject(), 0, elsize, iheight, elsize);
+			ghsrc.Free ();
+			ghdst.Free ();
+		}
+
+		public unsafe void FromBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
+			var bytesPerRow = this.FieldOffset (this.Fields.Count);
+			var fieldOffset = this.FieldOffset (icol);
+			var dtype = this.Fields[icol];
+			int elsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+			GCHandle ghsrc = GCHandle.Alloc (buf, GCHandleType.Pinned);
+			GCHandle ghdst = GCHandle.Alloc (data, GCHandleType.Pinned);
+			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), 0, elsize, ghsrc.AddrOfPinnedObject(), fieldOffset, bytesPerRow, iheight, elsize);
+			ghsrc.Free ();
+			ghdst.Free ();
 		}
 
 		public string ToString(object value)

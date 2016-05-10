@@ -35,28 +35,52 @@ namespace NArctic.Tests
 			TestDType ("[('index', '<M8[ns]'), ('Open', '<f8'), ('Close', '<f8'), ('Adj Close', '<f8'), ('High', '<f8'), ('Low', '<f8'), ('Volume', '<i8')]");
 		}
 
-		public static void TestReadArctic(string dbname="arctic_bench", string host="localhost"){
+		public static void TestReadArctic(string dbname="arctic_bench", string host="localhost", string symbol="S1"){
 			var driver = new MongoClient ("mongodb://"+host);
 			var db = driver.GetDatabase (dbname);
 
 			var arctic = new Arctic (db);
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
-			var df = arctic.ReadDataFrameAsync ("S0").Result;
-			Console.WriteLine (df);
+			var df = arctic.ReadDataFrameAsync (symbol).Result;
 			sw.Stop ();
-			Console.WriteLine ("read {0} took {1}s = {2}/sec".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds));
+			if (df != null) {
+				Console.WriteLine (df);
+				Console.WriteLine ("read {0} took {1}s = {2}/sec".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count / sw.Elapsed.TotalSeconds));
+			} else {
+				Console.WriteLine ("Not found {0}".Args (symbol));
+			}
 		}
 
-		public static DataFrame RandomWalk(DateTime start, DateTime stop, int count)
+		public static DataFrame RandomWalk(int count, DateTime start, DateTime stop)
 		{
 			var df = new DataFrame { 
-				NumCIL.Time.Series.DateTimeRange(start, stop, count)
+				Series.DateTimeRange(count, start, stop),
+				Series.Random(count).Apply(v => v.CumSum().Exp())
 			};
 			return df;
 		}
 
-		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true) {
+		public static DataFrame SampleDataFrame(DateTime start=default(DateTime)) {
+			start = start == default(DateTime) ? DateTime.Now : start;
+			var df = new DataFrame();
+			df.Columns.Add (new []{start,start.AddDays(1),start.AddDays(2),start.AddDays(3),start.AddDays(4)}, "index");
+			//df.Columns.Add (new long[]{1, 2, 3, 4, 5}, "long");
+			df.Columns.Add (new double[]{1, 2, 3, 4, 5}, "double");
+			Console.WriteLine ("new dataframe:\n {0}".Args(df));
+	
+			var df2 = df.Clone ();
+			df2 [0].AsDateTime64 += TimeSpan.FromDays (30).ToDateTime64 ();
+			Console.WriteLine ("and append dataframe:\n{0}".Args (df2));
+			return df;
+		}
+
+		public static DataFrame RandomDataFrame(DateTime start=default(DateTime), int count=100000) {
+			start = start == default(DateTime) ? DateTime.Now : start;
+			return RandomWalk (count, start, start.AddDays(count));
+		}
+
+		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true, string symbol="S1") {
 			var driver = new MongoClient ("mongodb://"+host);
 			if (purge)
 				driver.DropDatabase (dbname);
@@ -64,22 +88,17 @@ namespace NArctic.Tests
 			var db = driver.GetDatabase (dbname);
 
 			var arctic = new Arctic (db);
-			Stopwatch sw = new Stopwatch ();
-			var df = new DataFrame();
-			df.Columns.Add (new []{new DateTime(2015,1,1),new DateTime(2015,1,2),new DateTime(2015,1,3),new DateTime(2015,1,4),new DateTime(2015,1,5)}, "index");
-			df.Columns.Add (new long[]{1, 2, 3, 4, 5}, "long");
-			df.Columns.Add (new double[]{1, 2, 3, 4, 5}, "double");
-			var s = df.ToString ();
-			Console.WriteLine (s);
+			//var df = SampleDataFrame ();
+			var df = RandomDataFrame();
+			var df2 = SampleDataFrame (df[0].AsDateTime() [df.Rows.Count - 1]);
 
-			var df2 = df.Clone ();
-			df2 [0].AsDateTime.Values += TimeSpan.FromDays (30).ToDateTime64 ();
-			Console.WriteLine ("added 1 day:\n{0}".Args (df2));
+			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
-			var version = arctic.AppendDataFrameAsync ("S1", df).Result;
-			var version2 = arctic.AppendDataFrameAsync ("S1", df2	).Result;
+			var version = arctic.AppendDataFrameAsync (symbol, df).Result;
+			var version2 = arctic.AppendDataFrameAsync (symbol, df2	).Result;
 			sw.Stop ();
-			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (df.Rows.Count, sw.Elapsed.TotalSeconds, df.Rows.Count/sw.Elapsed.TotalSeconds, version));
+			long rows = df.Rows.Count + df2.Rows.Count;
+			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (rows, sw.Elapsed.TotalSeconds, rows/sw.Elapsed.TotalSeconds, version));
 		}
 
 		public static void Main (string[] args)

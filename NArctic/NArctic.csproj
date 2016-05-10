@@ -53,20 +53,14 @@
     <Compile Include="DTypeParser.cs" />
     <Compile Include="DataFrame.cs" />
     <Compile Include="Utilities.cs" />
-    <Compile Include="Unsafe.cs" />
+    <Compile Include="MetaNumerics.cs" />
+    <Compile Include="Conversions.cs" />
+    <Compile Include="Series.cs" />
+    <Compile Include="UnsafeAPI.cs" />
+    <Compile Include="Random.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\bohrium\bridge\NumCIL\NumCIL\NumCIL.csproj">
-      <Project>{08C17283-4F2A-466C-AE28-1923837A2F58}</Project>
-      <Name>NumCIL</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\bohrium\bridge\NumCIL\NumCIL.Unsafe\NumCIL.Unsafe.csproj">
-      <Project>{F3DA9742-5A09-4456-9531-548324D35CE3}</Project>
-      <Name>NumCIL.Unsafe</Name>
-    </ProjectReference>
   </ItemGroup>
 </Project>

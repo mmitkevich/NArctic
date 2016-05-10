@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Utilities;
 
-namespace NumCIL
+namespace NArctic
 {
 	public class DTypeParser
 	{
