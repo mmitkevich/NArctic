@@ -12,6 +12,7 @@ using System.ComponentModel;
 using Utilities;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization.IdGenerators;
+using Serilog;
 
 namespace NArctic
 {
@@ -36,13 +37,13 @@ namespace NArctic
 
 		public async Task<BsonDocument> ReadVersionAsync(string symbol)
 		{
-			Console.WriteLine ("reading {0} version".Args (symbol));
+			Log.Debug("reading {symbol} version", symbol);
 			IAsyncCursorSource<BsonDocument> versions = this._versions.AsQueryable ()
 				.Where (x => x ["symbol"] == symbol)
 				.OrderByDescending (x => x ["version"])
 				.Take(1);
 			var rtn =  await versions.FirstOrDefaultAsync<BsonDocument>();
-			Console.WriteLine ("read {0} version: {1}".Args (symbol, rtn));
+			Log.Debug("read {0} version: {1}".Args (symbol, rtn));
 			return rtn;
 		}
 
@@ -57,7 +58,7 @@ namespace NArctic
 			var parent = version.GetValue ("base_version_id", null);
 			if (parent == null)
 				parent = id;
-			Console.WriteLine ("version: {0}\nRead segments parent {1}".Args (version, parent));
+			Log.Debug ("version: {0}\nRead segments parent {1}".Args (version, parent));
 			var bf = Builders<BsonDocument>.Filter;
 			var filter = bf.Eq ("symbol", symbol) & bf.Eq ("parent", parent);
 			var segments = await this._segments.FindAsync (filter);
@@ -65,7 +66,7 @@ namespace NArctic
 			while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
 #if DEBUG
-					//Console.WriteLine ("read segment: {0}".Args(segment));
+					//Log.Debug ("read segment: {0}".Args(segment));
 #endif
 					var chunk  = segment["data"].AsByteArray;
 					if (segment ["compressed"].AsBoolean)
@@ -82,7 +83,7 @@ namespace NArctic
 			var dtype = version ["dtype"].AsString;
 			var buftype = new DType (dtype);
 			var bytes = buf.GetBytes ();
-			Console.WriteLine ("converting to dataframe up_to={0} dtype={1} len={2}".Args (nrows, dtype, bytes.Length));
+			Log.Debug ("converting to dataframe up_to={0} dtype={1} len={2}".Args (nrows, dtype, bytes.Length));
 			var df = DataFrame.FromBuffer(buf.GetBytes(), buftype, nrows);
 			return df;			
 		}
@@ -95,13 +96,18 @@ namespace NArctic
 		{
             if(chunksize>0 && df.Rows.Count>chunksize)
             {
-                var rng = Range.R(0, chunksize - 1);
+                var rng = Range.R(0, chunksize);
                 BsonDocument ver = null;
+				int chunkscount = 0;
                 while (rng.First<df.Rows.Count) {
                     var chunk = df[rng];
                     ver = await AppendDataFrameAsync(symbol, chunk);
                     rng = Range.R(rng.First + chunksize, rng.Last + chunksize);
+					chunkscount++;
                 }
+#if DEBUG
+				Log.Debug ("Total {0} chunks".Args (chunkscount));
+#endif
                 return ver;
             }
 
@@ -161,8 +167,8 @@ namespace NArctic
 				//{"parent", new BsonArray{ version["_id"] }},
 			};
 #if DEBUG
-			//Console.WriteLine ("new segment: {0}".Args (segment));
-			Console.WriteLine ("new version: {0}".Args (version));
+			//Log.Debug ("new segment: {0}".Args (segment));
+			Log.Debug ("new version: {0}".Args (version));
 #endif
 			await _segments.InsertOneAsync(segment);
 			//await _versions.InsertOneAsync(version);	
@@ -170,7 +176,7 @@ namespace NArctic
 
 			// update parents in versions
 			var res = await _segments.UpdateManyAsync (BF.Eq("symbol", symbol), BU.Set ("parent", new BsonArray{ version ["_id"] }));
-			Console.WriteLine ("updated segments parents {0}".Args(res.MatchedCount));
+			Log.Debug ("updated segments parents {0}".Args(res.MatchedCount));
 			return version;
 		}
 

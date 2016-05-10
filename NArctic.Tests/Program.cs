@@ -8,7 +8,7 @@ using MongoDB.Driver;
 using System.Diagnostics;
 using System.Threading;
 using NArctic.Randoms;
-
+using Serilog;
 namespace NArctic.Tests
 {
 	public class MainClass
@@ -67,14 +67,14 @@ namespace NArctic.Tests
 		public static DataFrame SampleDataFrame(DateTime start=default(DateTime)) {
 			start = start == default(DateTime) ? DateTime.Now : start;
 			var df = new DataFrame();
-			df.Columns.Add (new []{start,start.AddDays(1),start.AddDays(2),start.AddDays(3),start.AddDays(4)}, "index");
-			//df.Columns.Add (new long[]{1, 2, 3, 4, 5}, "long");
-			df.Columns.Add (new double[]{1, 2, 3, 4, 5}, "double");
+			df.Columns.Add (new []{start,start.AddDays(1),start.AddDays(2),start.AddDays(3)}, "index");
+			//df.Columns.Add (new long[]{1, 2, 3, 4}, "long");
+			df.Columns.Add (new double[]{1, 2, 3, 4}, "double");
 			Console.WriteLine ("new dataframe:\n {0}".Args(df));
 	
-			var df2 = df.Clone ();
-			df2 [0].AsDateTime64 += TimeSpan.FromDays (30).ToDateTime64 ();
-			Console.WriteLine ("and append dataframe:\n{0}".Args (df2));
+			//var df2 = df.Clone ();
+			//df2 [0].AsDateTime64 += TimeSpan.FromDays (30).ToDateTime64 ();
+			//Console.WriteLine ("and append dataframe:\n{0}".Args (df2));
 			return df;
 		}
         //public const int SIZE = 24 * 60 * 60 * 365;
@@ -109,6 +109,11 @@ namespace NArctic.Tests
 
 		public static void Main (string[] args)
 		{
+			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
+				.MinimumLevel.Debug()
+				.WriteTo.Console()
+				.CreateLogger();
+			
 //			TestDTypes ();
 			TestWriteArctic("arctic_net");
 			TestReadArctic("arctic_net");
