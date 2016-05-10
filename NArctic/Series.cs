@@ -385,12 +385,19 @@ namespace NArctic
 			return Values.Value.GetEnumerator ();
 		}
 
+		public int SliceIndex(int index)
+		{
+			if (index >= 0)
+				return index;
+			return (index + Count);
+		}
+
 		public override T this[int index] {
 			get {
-				return Values.Value [index];
+				return Values.Value [SliceIndex(index)];
 			}
 			set { 
-				Values.Value [index] = value;
+				Values.Value [SliceIndex(index)] = value;
 			}
 		}
 

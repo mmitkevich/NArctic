@@ -7,6 +7,7 @@ using NumCIL;
 using MongoDB.Driver;
 using System.Diagnostics;
 using System.Threading;
+using NArctic.Randoms;
 
 namespace NArctic.Tests
 {
@@ -56,8 +57,9 @@ namespace NArctic.Tests
 		{
 			var df = new DataFrame { 
 				Series.DateTimeRange(count, start, stop),
-				Series.Random(count).Apply(v => v.CumSum().Exp())
+				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-5).CumSum().Exp())
 			};
+			Console.WriteLine (df);
 			return df;
 		}
 
@@ -90,7 +92,7 @@ namespace NArctic.Tests
 			var arctic = new Arctic (db);
 			//var df = SampleDataFrame ();
 			var df = RandomDataFrame();
-			var df2 = SampleDataFrame (df[0].AsDateTime() [df.Rows.Count - 1]);
+			var df2 = SampleDataFrame (df[0].AsDateTime()[-1]);
 
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
