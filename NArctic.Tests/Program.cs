@@ -43,7 +43,7 @@ namespace NArctic.Tests
 			var arctic = new Arctic (db);
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
-			var df = arctic.ReadDataFrameAsync (symbol).Result;
+			var df = arctic.ReadAsync (symbol).Result;
 			sw.Stop ();
 			if (df != null) {
 				Console.WriteLine (df);
@@ -86,7 +86,7 @@ namespace NArctic.Tests
 			return RandomWalk (count, start, start+delta.Mul(count));
 		}
 
-		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true, string symbol="S1") {
+		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true, bool del=true, string symbol="S1") {
 			var driver = new MongoClient ("mongodb://"+host);
 			if (purge)
 				driver.DropDatabase (dbname);
@@ -94,14 +94,20 @@ namespace NArctic.Tests
 			var db = driver.GetDatabase (dbname);
 
 			var arctic = new Arctic (db);
+
+			if(del) {
+				var delcnt = arctic.DeleteAsync(symbol).Result;
+				Console.WriteLine("Deleted {0} versi\tons for {1}".Args(delcnt, symbol));
+			}
+
 			//var df = SampleDataFrame ();
 			var df = RandomDataFrame();
 			var df2 = SampleDataFrame (df[0].AsDateTime()[-1]);
 
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
-			var version = arctic.AppendDataFrameAsync (symbol, df, CHUNKSIZE).Result;
-			var version2 = arctic.AppendDataFrameAsync (symbol, df2, CHUNKSIZE).Result;
+			var version = arctic.AppendAsync (symbol, df, CHUNKSIZE).Result;
+			var version2 = arctic.AppendAsync (symbol, df2, CHUNKSIZE).Result;
 			sw.Stop ();
 			long rows = df.Rows.Count + df2.Rows.Count;
 			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (rows, sw.Elapsed.TotalSeconds, rows/sw.Elapsed.TotalSeconds, version));
@@ -115,8 +121,8 @@ namespace NArctic.Tests
 				.CreateLogger();
 			
 //			TestDTypes ();
-			TestWriteArctic("arctic_net");
-			TestReadArctic("arctic_net");
+			TestWriteArctic("arctic_net",purge:false,del:true);
+			TestReadArctic("arctic_bench",symbol:"S0");
 
 
 			Console.WriteLine ("DONE");
