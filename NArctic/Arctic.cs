@@ -13,6 +13,7 @@ using Utilities;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization.IdGenerators;
 using Serilog;
+using System.Security.Cryptography;
 
 namespace NArctic
 {
@@ -47,7 +48,7 @@ namespace NArctic
 			return rtn;
 		}
 
-		public async Task<DataFrame> ReadDataFrameAsync(string symbol, BsonDocument version=null)
+		public async Task<DataFrame> ReadAsync(string symbol, BsonDocument version=null)
 		{
 			version = version ?? await ReadVersionAsync(symbol);
 			if (version == null)
@@ -92,7 +93,16 @@ namespace NArctic
 		internal static UpdateDefinitionBuilder<BsonDocument> BU {get{ return Builders<BsonDocument>.Update;} }
 		internal static UpdateOptions Upsert = new UpdateOptions{ IsUpsert = true };
 
-		public async Task<BsonDocument> AppendDataFrameAsync(string symbol, DataFrame df, int chunksize=0)
+		public async Task<long> DeleteAsync(string symbol)
+		{
+			var rtn = await _segments.DeleteManyAsync (BF.Eq ("symbol", symbol));
+			Log.Information ("Deleted {count} segments for {symbol}", rtn.DeletedCount, symbol);
+			rtn = await _versions.DeleteManyAsync (BF.Eq ("symbol", symbol));
+			Log.Information ("Deleted {count} versions for {symbol}", rtn.DeletedCount, symbol);
+			return rtn.DeletedCount;
+		}
+
+		public async Task<BsonDocument> AppendAsync(string symbol, DataFrame df, int chunksize=0)
 		{
             if(chunksize>0 && df.Rows.Count>chunksize)
             {
@@ -101,13 +111,10 @@ namespace NArctic
 				int chunkscount = 0;
                 while (rng.First<df.Rows.Count) {
                     var chunk = df[rng];
-                    ver = await AppendDataFrameAsync(symbol, chunk);
+                    ver = await AppendAsync(symbol, chunk);
                     rng = Range.R(rng.First + chunksize, rng.Last + chunksize);
 					chunkscount++;
                 }
-#if DEBUG
-				Log.Debug ("Total {0} chunks".Args (chunkscount));
-#endif
                 return ver;
             }
 
@@ -145,10 +152,17 @@ namespace NArctic
 			segment_index.Add (segment_offset);
 			version ["segment_index"] = segment_index;
 			version ["up_to"] = segment_offset + df.Rows.Count;
-
 			var buf = new ByteBuffer();
 			var bin = df.ToBuffer ();
 			buf.AppendCompress(bin);
+
+			var sha1 = SHA1.Create();
+
+			var sha = version.GetValue ("sha", null);
+			if (sha == null) {
+				byte[] hashBytes = sha1.ComputeHash(bin);
+				version ["sha"] = new BsonBinaryData (hashBytes);
+			}
 
 #if false
 			var buf2 = new ByteBuffer ();
@@ -158,25 +172,37 @@ namespace NArctic
 				throw new InvalidOperationException ();
 			var df2 = DataFrame.FromBuffer(bin2, df.DType, df.Rows.Count);
 #endif
-
 			var segment = new BsonDocument { 
-				{"symbol", symbol },
+				{"symbol", symbol},
 				{"data", new BsonBinaryData(buf.GetBytes())},
 				{"compressed", true},
 				{"segment", segment_offset + df.Rows.Count - 1},
-				//{"parent", new BsonArray{ version["_id"] }},
+				{"parent", new BsonArray{ version["_id"] }},
 			};
-#if DEBUG
-			//Log.Debug ("new segment: {0}".Args (segment));
-			Log.Debug ("new version: {0}".Args (version));
-#endif
+
+			var hash = new ByteBuffer();
+			hash.Append(Encoding.ASCII.GetBytes(symbol));
+			foreach(var key in segment.Names.OrderByDescending(x=>x)) {
+				var value = segment.GetValue (key);
+				if (value is BsonBinaryData)
+					hash.Append (value.AsByteArray);
+				else {
+					var str = value.ToString ();
+					hash.Append (Encoding.ASCII.GetBytes (str));
+				}
+			}
+			segment ["sha"] = sha1.ComputeHash (hash.GetBytes ());
+
 			await _segments.InsertOneAsync(segment);
 			//await _versions.InsertOneAsync(version);	
 			await _versions.ReplaceOneAsync(BF.Eq("symbol", symbol), version, Upsert);
 
+			Log.Information ("inserted new segment {segment} for symbol {symbol}", segment["_id"], symbol);
+			Log.Information ("replaced version {0} for symbol {symbol} sha1 {sha}", version["_id"], symbol, sha);
+
 			// update parents in versions
-			var res = await _segments.UpdateManyAsync (BF.Eq("symbol", symbol), BU.Set ("parent", new BsonArray{ version ["_id"] }));
-			Log.Debug ("updated segments parents {0}".Args(res.MatchedCount));
+			//var res = await _segments.UpdateManyAsync (BF.Eq("symbol", symbol), BU.Set ("parent", new BsonArray{ version ["_id"] }));
+			//Log.Debug ("updated segments parents {0}".Args(res.MatchedCount));
 			return version;
 		}
 
