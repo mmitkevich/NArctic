@@ -68,12 +68,14 @@ namespace NArctic
 
         public int Enqueue(T value)
         {
-            return this.DataFrame.Rows.Enqueue((d, i) => this[i] = value);
+            var r = this.DataFrame.Ring.Enqueue();
+            this[r] = value; 
+            return r;
         }
 
         public T Dequeue()
         {
-            int r = this.DataFrame.Rows.Dequeue();
+            int r = this.DataFrame.Ring.Dequeue();
             if (r < 0)
                 throw new InvalidOperationException("Empty queue");
             return this[r];
@@ -96,9 +98,9 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    pi.DelegateForSet<T, double>()(ref obj, df[i].AsDouble.Value[row]);
+                    pi.DelegateForSet<T, double>()(ref obj, df[i].As<double>()[row]);
                 else if (pi.PropertyType == typeof(long))
-                    pi.DelegateForSet<T, long>()(ref obj, df[i].AsLong.Value[row]);
+                    pi.DelegateForSet<T, long>()(ref obj, df[i].As<long>()[row]);
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }
             return obj;
@@ -110,9 +112,9 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    df[i].AsDouble.Value[row] = pi.DelegateForGet<T, double>()(obj);
+                    df[i].As<double>()[row] = pi.DelegateForGet<T, double>()(obj);
                 else if (pi.PropertyType== typeof(long))
-                    df[i].AsLong.Value[row] = pi.DelegateForGet<T, long>()(obj);
+                    df[i].As<long>()[row] = pi.DelegateForGet<T, long>()(obj);
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }
         }

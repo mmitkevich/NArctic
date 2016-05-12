@@ -187,9 +187,6 @@ namespace NArctic
 	{
 		public abstract T this [int index]{ get; set;}
 
-        private int Head;
-        private int Tail;
-
 		public BaseSeries(DType dtype){
 			DType = dtype;
 			if (DType == null) {
@@ -208,41 +205,6 @@ namespace NArctic
             get { throw new NotSupportedException(); }
             set { throw new NotSupportedException(); }
         }
-
-        public bool TryEnqueue(T item)
-        {
-            int next = (Head + 1) % Count;
-            if (next == Tail)
-                return false;
-            int head = Head;
-            Head = next;
-            this[head] = item;
-            return true;
-        }
-
-        public bool TryDequeue(out T item)
-        {
-            if (Head == Tail) {
-                item = default(T);
-                return false;
-            }
-            int tail = Tail;
-            Tail = (Tail + 1) % Count;
-            item = this[tail];
-            return false;
-        }
-
-        public int QueueLength
-        {
-            get
-            {
-                int used = (Head - Tail);
-                if (used < 0)
-                    used = Head + Count - Tail;
-                return used;
-            }
-        }
-
 
         #region IList<T>
         public virtual IEnumerator<T> GetEnumerator () {
@@ -267,8 +229,8 @@ namespace NArctic
 
 		public void Add (T item)
 		{
-            TryEnqueue(item);
-		}
+            throw new NotSupportedException();
+        }
 
 		public void Clear ()
 		{

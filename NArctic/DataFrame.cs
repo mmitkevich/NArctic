@@ -21,6 +21,7 @@ namespace NArctic
 	public class SeriesList : IEnumerable<Series>
 	{
 		protected List<Series> Series = new List<Series> ();
+        protected Dictionary<string, Series> SeriesByName = new Dictionary<string, NArctic.Series>();
 
 		public int Count { get{ return Series.Count; } }
 
@@ -33,20 +34,30 @@ namespace NArctic
 		public event Action<SeriesList, IEnumerable<Series>, IEnumerable<Series>> SeriesListChanged;
 
 		public int Add(Series s, string name=null){
-			if (name != null)
-				s.Name = name;
+            if (name != null)
+                s.Name = name;
+            else if (s.Name == null)
+                s.Name = this.Series.Count.ToString();
 			this.Series.Add (s);
+            this.SeriesByName[s.Name] = s;
             if(SeriesListChanged!=null)
 			    SeriesListChanged(this, new Series[]{s}, new Series[0]);
 			this.DType.Fields.Add (s.DType);
 			return this.Series.Count - 1;
 		}
 
-		public Series this[int i] {
+		public Series this[int column] {
 			get {
-				return Series [i];
+				return Series [column];
 			}
 		}
+
+        public Series this[string column]
+        {
+            get {
+                return SeriesByName[column];
+            }
+        }
 
 		public string ToString(object[] args)
 		{
@@ -61,39 +72,25 @@ namespace NArctic
 		}
 	}
 
-	public class RowsList : IEnumerable<object[]>
-	{
-		protected DataFrame df;
-		public int Count;
-        private int Head;    // Free index (write to it)
-        private int Tail;    // First used index (read from it)
+    public class Ring : IEnumerable<int>
+    {
+        public int Head;    // Free index (write to it)
+        public int Tail;    // First used index (read from it)
 
-		public RowsList(DataFrame df) 
-		{
-			this.df = df;
+        public Ring(int capacity)
+        {
+            this.Capacity = capacity;
             this.Head = 0;
             this.Tail = 0;
-		}
-
-        public DataFrame Slice(Range rng)
-        {
-            var rtn = new DataFrame();
-            foreach (var col in df.Columns)
-            {
-                rtn.Columns.Add(col[rng]);
-            }
-            return rtn;
         }
 
-        public int Enqueue(Action<DataFrame, int> fill=null)
+        public int Enqueue()
         {
-            int next = (Head + 1) % Count;
+            int next = (Head + 1) % Capacity;
             if (next == Tail)
                 return -1;
             int head = Head;
             Head = next;
-            if (fill != null)
-                fill(this.df, head);
             return head;
         }
 
@@ -106,15 +103,53 @@ namespace NArctic
             return tail;
         }
 
-        public int QueueLength
+        public IEnumerator<int> GetEnumerator()
+        {
+            int head = Head;
+            while (head != Tail)
+            {
+                yield return head;
+                head = (head + 1) % Capacity;
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<int>)this).GetEnumerator();
+        }
+
+        public int Count
         {
             get
             {
                 int used = (Head - Tail);
                 if (used < 0)
-                    used = Head + Count - Tail;
+                    used = Head + Capacity - Tail;
                 return used;
             }
+        }
+
+        public int Capacity { get; set; }
+    }
+
+    public class RowsList : IEnumerable<object[]>
+	{
+		protected DataFrame df;
+		public int Count;
+
+		public RowsList(DataFrame df) 
+		{
+			this.df = df;
+		}
+
+        public DataFrame Slice(Range rng)
+        {
+            var rtn = new DataFrame();
+            foreach (var col in df.Columns)
+            {
+                rtn.Columns.Add(col[rng]);
+            }
+            return rtn;
         }
 
 		public object[] this[int row] 
@@ -296,6 +331,7 @@ namespace NArctic
 	{
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
+        public Ring Ring;
 
         public DType DType {
 			get { return Columns.DType; } 
@@ -303,7 +339,8 @@ namespace NArctic
 
 		public DataFrame()
 		{
-			Rows = new RowsList (this);
+            Ring = new Ring(0);
+            Rows = new RowsList (this);
 			Columns.SeriesListChanged += this.OnColumnsChanged;
 		}
 
@@ -328,7 +365,12 @@ namespace NArctic
             }
         }
 
-		public DataFrame Clone() 
+        public Series this[string column]
+        {
+            get { return Columns[column]; }
+        }
+
+        public DataFrame Clone() 
 		{
 			var df = new DataFrame (this.Columns.Select(x=>x.Clone()));
 			return df;
@@ -337,6 +379,7 @@ namespace NArctic
 		public void OnColumnsChanged(SeriesList series, IEnumerable<Series> removed, IEnumerable<Series> added)
 		{
 			Rows.OnColumnsChanged (series, removed, added);
+            Ring.Capacity = Rows.Count;
 		}
 
 		public DataFrame this [Range range] {

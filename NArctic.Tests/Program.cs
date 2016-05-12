@@ -119,8 +119,9 @@ namespace NArctic.Tests
             var df = new DataFrame(10, typeof(double), typeof(long));
             for(int i=0;i<20;i++)
             {
-                var head = df.Rows.Enqueue((d, r) => d[0].AsDouble.Value[r] = i);
-                var tail = df.Rows.Dequeue();
+                var head = df.Ring.Enqueue();
+                df[0].As<double>()[head] = i;
+                var tail = df.Ring.Dequeue();
                 Console.WriteLine("step {0}\n{1}".Args(i,df));
             }
         }
@@ -176,6 +177,11 @@ namespace NArctic.Tests
             IDictionary<DateTime, double> map = df.AsMap<DateTime, double>(0, 1);
             map[start] = 100;
             Console.WriteLine("df[1]={0},{1}", df[0].As<DateTime>()[1], df[1].As<double>()[1]);
+
+            foreach(var kv in map)
+            {
+                Console.WriteLine("map {0}={1}", kv.Key, kv.Value);
+            }
         }
 
 		public static void Main (string[] args)
@@ -186,17 +192,17 @@ namespace NArctic.Tests
 				.CreateLogger();
 
             TestIndex();
-#if false
+
             TestDTypes ();
 
             TestCircularDataframe();
 
             TestReflection();
-
+#if false
             TestWriteArctic("arctic_net",purge:false,del:true);
             TestReadArctic("arctic_net");
 #endif
-			Console.WriteLine ("DONE");
+            Console.WriteLine ("DONE");
 		}
 	}
 }
