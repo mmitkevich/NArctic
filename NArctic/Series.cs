@@ -14,7 +14,7 @@ namespace NArctic
 {
 	public static class NumCILMixin
 	{
-		public static long Dimension<T>(this NdArray<T> array, int axis = 0) {
+		public static long Count<T>(this NdArray<T> array, int axis = 0) {
 			return array.Shape.Dimensions [axis].Length;
 		}
 
@@ -24,7 +24,7 @@ namespace NArctic
 
 		public static NdArray<T> Fill<T>(this NdArray<T> array, Func<long, T> f, int axis = 0, long[] idx=null) {
 			idx = idx ?? new long[array.Shape.Dimensions.Length];
-			for (idx[axis] = 0; idx[axis] < array.Dimension(axis); idx[axis]++) {
+			for (idx[axis] = 0; idx[axis] < array.Count(axis); idx[axis]++) {
 				array.Value [idx] = f (idx [axis]);
 			}
 			return array;
@@ -32,8 +32,8 @@ namespace NArctic
 
 		public static NdArray<T> Fill<T>(this NdArray<T> array, Func<long,long,T> f, int axis1 = 0, int axis2 = 1, long[] idx=null) {
 			idx = idx ?? new long[array.Shape.Dimensions.Length];
-			for (idx[axis1] = 0; idx[axis1] < array.Dimension(axis1); idx[axis1]++) 
-				for (idx[axis2] = 0; idx[axis2] < array.Dimension(axis2); idx[axis2]++) {
+			for (idx[axis1] = 0; idx[axis1] < array.Count(axis1); idx[axis1]++) 
+				for (idx[axis2] = 0; idx[axis2] < array.Count(axis2); idx[axis2]++) {
 					array.Value [idx] = f (idx [axis1], idx[axis2]);
 				}
 			return array;
@@ -81,8 +81,8 @@ namespace NArctic
 			get;
 		}
 
-		public virtual Series<T> As<T>() {
-			var typed = this as Series<T>;
+		public virtual BaseSeries<T> As<T>() {
+			var typed = this as BaseSeries<T>;
 			if(typed==null)
 				throw new InvalidCastException();
 			return typed;
@@ -125,7 +125,7 @@ namespace NArctic
 		{
 			var delta = (end - start).ToDateTime64 () / count;
             var r = new NdArray<long>(new Shape(count));
-            for (int i = 0; i < r.Dimension(); i++)
+            for (int i = 0; i < r.Count(); i++)
                 r.Value[i] = start.ToDateTime64() + delta * i;
             return new Series<DateTime, long> (r,
 				getter:DateTime64.ToDateTime, 
@@ -186,6 +186,7 @@ namespace NArctic
 	public abstract class BaseSeries<T> : Series, IList<T> 
 	{
 		public abstract T this [int index]{ get; set;}
+
         private int Head;
         private int Tail;
 
@@ -202,6 +203,11 @@ namespace NArctic
 					throw new InvalidOperationException ("unknown dtype");
 			}
 		}
+
+        public virtual NdArray<T> Values {
+            get { throw new NotSupportedException(); }
+            set { throw new NotSupportedException(); }
+        }
 
         public bool TryEnqueue(T item)
         {
@@ -244,7 +250,7 @@ namespace NArctic
 				yield return this [i];
 		}
 
-		public int IndexOf (T item)
+		public virtual int IndexOf (T item)
 		{
 			throw new NotSupportedException ();
 		}
@@ -340,7 +346,13 @@ namespace NArctic
 				yield return getter(q);
 		}
 
-		public override T this[int index] {
+        public override int IndexOf(T item)
+        {
+            return Source.IndexOf(setter(item));
+        }
+
+
+        public override T this[int index] {
 			get {
 				return getter (Source[index]);
 			}
@@ -421,7 +433,35 @@ namespace NArctic
 			get{ return (int)Values.Shape.Dimensions [0].Length;}
 		}
 
-		public override NArctic.Series Clone()
+        public override int IndexOf(T item)
+        {
+            return BinarySerch(item, Comparer<T>.Default);
+        }
+
+        public int BinarySerch(T item, IComparer<T> comparer)
+        {
+            var first = 0L;
+            var last = Values.Count() - 1;
+
+            while (last > first)
+            {
+                var mid = last / 2;
+                var vmid = Values.Value[mid];
+                var cmp = comparer.Compare(item, vmid);
+                if (cmp<0)
+                    last = mid;
+                else if (cmp>0)
+                    first = mid;
+                else
+                    return (int)mid;
+            }
+
+            return (int)first;
+
+        }
+
+
+        public override NArctic.Series Clone()
 		{
 			return Copy();
 		}

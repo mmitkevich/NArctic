@@ -167,6 +167,131 @@ namespace NArctic
 		}
 	}
 
+    public class DataMap<K, V> : IDictionary<K, V>
+    {
+        public DataFrame DataFrame;
+        private BaseSeries<K> keys;
+        private BaseSeries<V> values;
+
+        public DataMap(DataFrame df, BaseSeries<K> keys, BaseSeries<V> values)
+        {
+            this.DataFrame = df;
+            this.keys = keys;
+            this.values = values;
+        }
+
+        public V this[K key]
+        {
+            get
+            {
+                int index = keys.IndexOf(key);
+                if (index < 0)
+                    throw new KeyNotFoundException(key.ToString());
+                return values[index];
+            }
+
+            set
+            {
+                int index = keys.IndexOf(key);
+                if (index < 0)
+                    throw new KeyNotFoundException(key.ToString());
+                values[index] = value;
+            }
+        }
+
+        public int Count
+        {
+            get
+            {
+                return keys.Count;
+            }
+        }
+
+        public bool IsReadOnly
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public ICollection<K> Keys
+        {
+            get
+            {
+                return keys;
+            }
+        }
+
+        public ICollection<V> Values
+        {
+            get
+            {
+                return values;
+            }
+        }
+
+        public void Add(KeyValuePair<K, V> item)
+        {
+            this.keys.Add(item.Key);
+            this.values.Add(item.Value);
+        }
+
+        public void Add(K key, V value)
+        {
+            this.keys.Add(key);
+            this.values.Add(value);
+        }
+
+        public void Clear()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(KeyValuePair<K, V> item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool ContainsKey(K key)
+        {
+            return keys.IndexOf(key) != -1;
+        }
+
+        public void CopyTo(KeyValuePair<K, V>[] array, int arrayIndex)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerator<KeyValuePair<K, V>> GetEnumerator()
+        {
+            for(int i=0;i<keys.Count;i++)
+            {
+                yield return new KeyValuePair<K,V>(keys[i], values[i]);
+            }
+        }
+
+        public bool Remove(KeyValuePair<K, V> item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Remove(K key)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool TryGetValue(K key, out V value)
+        {
+            throw new NotImplementedException();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<KeyValuePair<K,V>>)this).GetEnumerator();
+        }
+    }
+
 	public class DataFrame : IEnumerable<Series>
 	{
 		public SeriesList Columns = new SeriesList ();
@@ -219,6 +344,18 @@ namespace NArctic
                 return Rows.Slice(range);
 			}
 		}
+
+        public DataFrame Loc<T>(T key, int indexColumn=0)
+        {
+            var s = this[indexColumn].As<T>();
+            int row = s.IndexOf(key);
+            return this[Range.R(row)];
+        }
+
+        public IDictionary<K, V> AsMap<K,V>(int indexColumn, int valuesColumn)
+        {
+            return new DataMap<K, V>(this, this[indexColumn].As<K>(), this[valuesColumn].As<V>());
+        }
 
 		public static DataFrame FromBuffer(byte[] buf, DType buftype, int iheight)
 		{

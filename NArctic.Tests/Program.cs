@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using Utilities;
@@ -157,6 +158,26 @@ namespace NArctic.Tests
             return tf.DataFrame;
         }
 
+        public static void TestIndex()
+        {
+            var start = new DateTime(2015, 1, 1);
+            var df = SampleDataFrame(start);
+            Console.WriteLine("Sample\n"+df);
+            start = start.AddDays(1);
+            var dr = df.Loc<DateTime>(start);
+            Console.WriteLine("[{0}]={1}".Args(start, dr));
+
+            var val = dr[1].As<double>()[0];
+            Console.WriteLine("[{0}]={1}", start, val);
+
+            IList<DateTime> keys = df[0].As<DateTime>();
+            Console.WriteLine("keys[-1]={0}", keys[-1]);
+
+            IDictionary<DateTime, double> map = df.AsMap<DateTime, double>(0, 1);
+            map[start] = 100;
+            Console.WriteLine("df[1]={0},{1}", df[0].As<DateTime>()[1], df[1].As<double>()[1]);
+        }
+
 		public static void Main (string[] args)
 		{
 			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
@@ -164,6 +185,8 @@ namespace NArctic.Tests
 				.WriteTo.Console()
 				.CreateLogger();
 
+            TestIndex();
+#if false
             TestDTypes ();
 
             TestCircularDataframe();
@@ -172,7 +195,7 @@ namespace NArctic.Tests
 
             TestWriteArctic("arctic_net",purge:false,del:true);
             TestReadArctic("arctic_net");
-
+#endif
 			Console.WriteLine ("DONE");
 		}
 	}
