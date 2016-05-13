@@ -84,6 +84,18 @@ namespace NArctic
             this.Tail = 0;
         }
 
+        public Range[] Ranges
+        {
+            get
+            {
+                if (Head <= Tail)
+                    return new[] { Range.R(Head, Tail) };
+                else
+                    return new[] { Range.R(Head, Capacity), Range.R(0, Tail) };
+            }
+        }
+
+
         public int Enqueue()
         {
             int next = (Head + 1) % Capacity;
@@ -101,6 +113,11 @@ namespace NArctic
             int tail = Tail;
             Tail = (Tail + 1) % Count;
             return tail;
+        }
+
+        public void Clear()
+        {
+            Head = Tail;
         }
 
         public IEnumerator<int> GetEnumerator()
@@ -352,16 +369,22 @@ namespace NArctic
 			}
 		}
 
-        public DataFrame(int count, params Type[] types) 
+        public DataFrame(long count, Type[] types, string[] names) 
             : this()
         {
-            foreach(var t in types)
+            for(int i=0;i<types.Length;i++)
             {
+                Type t = types[i];
                 if (t == typeof(double))
-                    Columns.Add(new Series<double>(count));
+                    Columns.Add(new Series<double>(count),names[i]);
                 else if (t == typeof(long))
-                    Columns.Add(new Series<long>(count));
-                else throw new ArgumentException("Type {0} not supported".Args(t));
+                    Columns.Add(new Series<long>(count),names[i]);
+                else if (t == typeof(DateTime))
+                    Columns.Add(new DateTimeSeries(count), names[i]);
+                else if (t == typeof(int))
+                    Columns.Add(new Series<int>(count), names[i]);
+                else
+                    throw new ArgumentException("Type {0} not supported".Args(t));
             }
         }
 
@@ -387,6 +410,16 @@ namespace NArctic
                 return Rows.Slice(range);
 			}
 		}
+
+        public DataFrame Head(int count)
+        {
+            return this[Range.R(0, count)];
+        }
+
+        public DataFrame Tail(int count)
+        {
+            return this[Range.R(this.Rows.Count-count-1, count)];
+        }
 
         public DataFrame Loc<T>(T key, int indexColumn=0)
         {

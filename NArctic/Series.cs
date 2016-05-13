@@ -95,20 +95,20 @@ namespace NArctic
 			return typed;
 		}
 
-		public Series<DateTime,long> AsDateTime() {
-			return this.As<DateTime,long> ();
+		public DateTimeSeries AsDateTime() {
+			return this as DateTimeSeries;
 		}
 
-		public unsafe abstract void  ToBuffer (byte[] buf, DType buftype, int iheight, int icol);
+		public abstract void  ToBuffer (byte[] buf, DType buftype, int iheight, int icol);
 
-		public unsafe static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
+		public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
 		{
 			if (buftype.Fields [icol].Type == typeof(double)) {
 				return Series<double>.FromBuffer (buf, buftype, iheight, icol);
 			}else if (buftype.Fields[icol].Type == typeof(long)) {
 				return Series<long>.FromBuffer (buf, buftype, iheight, icol);
 			}else if (buftype.Fields[icol].Type == typeof(DateTime)) {
-				return Series<DateTime, long>.FromBuffer (buf, buftype, iheight, icol, DateTime64.ToDateTime, DateTime64.ToDateTime64);
+				return DateTimeSeries.FromBuffer (buf, buftype, iheight, icol, DateTime64.ToDateTime, DateTime64.ToDateTime64);
 			}else
 				throw new InvalidOperationException("Failed decode {0} type".Args(buftype.Fields[icol].Type));
 		}
@@ -119,17 +119,6 @@ namespace NArctic
 		{
 			for (int i = 0; i < Count; i++)
 				yield return this.At (i);
-		}
-
-		public static BaseSeries<DateTime> DateTimeRange(int count, DateTime start, DateTime end)
-		{
-			var delta = (end - start).ToDateTime64 () / count;
-            var r = new NdArray<long>(new Shape(count));
-            for (int i = 0; i < r.Count(); i++)
-                r.Value[i] = start.ToDateTime64() + delta * i;
-            return new Series<DateTime, long> (r,
-				getter:DateTime64.ToDateTime, 
-				setter:DateTime64.ToDateTime64);
 		}
 
 		public static Series<double> Random(int count, Randoms.IRandomGenerator gen = null)
@@ -149,12 +138,11 @@ namespace NArctic
 
 		public static implicit operator Series(DateTime[] data) 
 		{
-			return new Series<DateTime, long> (new NdArray<long>(data.Select(DateTime64.ToDateTime64).ToArray()),
-				getter:DateTime64.ToDateTime, 
-				setter:DateTime64.ToDateTime64);
+			return new DateTimeSeries (new NdArray<long>(data.Select(DateTime64.ToDateTime64).ToArray()));
 		}
 
-		public NumCIL.Double.NdArray AsDouble {
+
+        public NumCIL.Double.NdArray AsDouble {
 			get {
 				return new NumCIL.Double.NdArray (As<double>().Values);
 			}
@@ -192,12 +180,15 @@ namespace NArctic
 			if (DType == null) {
 				if (typeof(T) == typeof(double))
 					DType = DType.Double;
-				if (typeof(T) == typeof(long))
+				else if (typeof(T) == typeof(long))
 					DType = DType.Long;
-				if (typeof(T) == typeof(DateTime))
+				else if (typeof(T) == typeof(DateTime))
 					DType = DType.DateTime64;
-				if (DType == null)
-					throw new InvalidOperationException ("unknown dtype");
+                else if (typeof(T) == typeof(int))
+                    DType = DType.Int;
+
+                else
+                    throw new InvalidOperationException ("unknown dtype");
 			}
 		}
 
@@ -350,7 +341,33 @@ namespace NArctic
 
 	}
 
-	public class Series<T> : BaseSeries<T>
+    public class DateTimeSeries : Series<DateTime,long>
+    {
+        public DateTimeSeries(long count)
+            : base(new Series<long>(count), getter: DateTime64.ToDateTime, setter: DateTime64.ToDateTime64)
+        { 
+        }
+
+        public DateTimeSeries(NdArray<long> array)
+            : base(new Series<long>(array), getter: DateTime64.ToDateTime, setter: DateTime64.ToDateTime64)
+        {
+        }
+
+
+        public static BaseSeries<DateTime> Range(int count, DateTime start, DateTime end)
+        {
+            var delta = (end - start).ToDateTime64() / count;
+            var r = new NdArray<long>(new Shape(count));
+            for (int i = 0; i < r.Count(); i++)
+                r.Value[i] = start.ToDateTime64() + delta * i;
+            return new Series<DateTime, long>(r,
+                getter: DateTime64.ToDateTime,
+                setter: DateTime64.ToDateTime64);
+        }
+
+    }
+
+    public class Series<T> : BaseSeries<T>
 	{
 		public NdArray<T> Values { get; set;}
 
@@ -360,7 +377,7 @@ namespace NArctic
 			}
 		}
 
-        public Series(int count) : base(null)
+        public Series(long count) : base(null)
         {
             Values = new NdArray<T>(new Shape(count));
         }
@@ -472,7 +489,7 @@ namespace NArctic
 			buftype.ToBuffer (buf, data, iheight, icol);
 		}
 
-		public unsafe static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
+		public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
 		{
 			var data = new T[iheight];
 			buftype.FromBuffer (buf, data, iheight, icol);

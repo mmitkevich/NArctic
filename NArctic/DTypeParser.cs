@@ -152,13 +152,25 @@ namespace NArctic
 			if ((kk = String(str, i, out val))>0) { 
 				if (val == "<f8") {
 					cur.Type = typeof(double);
-					cur.Size = 8;
+                    if (sizeof(double) != 8)
+                        throw new InvalidOperationException();
+                    cur.Size = 8;
 				} else if (val == "<i8") {
 					cur.Type = typeof(long);
-					cur.Size = 8;
+                    if (sizeof(long) != 4)
+                        throw new InvalidOperationException();
+                    cur.Size = 8;
+				} else if (val == "<i4") {
+					cur.Type = typeof(int);
+                    if (sizeof(int) != 4)
+                        throw new InvalidOperationException();
+					cur.Size = 4;
 				} else if (val == "<M8[ns]") {
 					cur.Type = typeof(DateTime);
-					cur.Size = 8;
+                    cur.Type = typeof(long);
+                    if (sizeof(long) != 8)
+                        throw new InvalidOperationException();
+                    cur.Size = 8;
 				}else
 					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (val));
 				i += kk;k += kk;

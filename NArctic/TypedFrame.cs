@@ -49,7 +49,7 @@ namespace NArctic
         public string[] Keys;
         public DataFrame DataFrame;
 
-        public TypedFrame(int count, string[] keys=null)
+        public TypedFrame(long count, string[] keys=null)
         {
             var type = typeof(T);
             Props = GetSettableProps(type).ToDictionary(x=>x.Name);
@@ -73,6 +73,16 @@ namespace NArctic
             return r;
         }
 
+        public bool Add(T value)
+        {
+            return Enqueue(value)>=0;
+        }
+
+        public void Clear()
+        {
+            DataFrame.Ring.Clear();
+        }
+
         public T Dequeue()
         {
             int r = this.DataFrame.Ring.Dequeue();
@@ -81,12 +91,15 @@ namespace NArctic
             return this[r];
         }
 
-        public DataFrame CreateDataFrame(int count)
+        public int QueueCount
+        {
+            get { return this.DataFrame.Ring.Count; }
+        }
+
+        public DataFrame CreateDataFrame(long count)
         {
             var types = Keys.Select(k => Props[k].PropertyType).ToArray();
-            var df = new DataFrame(count, types);
-            for (int i = 0; i < df.Columns.Count; i++)
-                df.Columns[i].Name = Props[Keys[i]].Name;
+            var df = new DataFrame(count, types, Keys);
             DataFrame = df;
             return df;
         }
@@ -98,12 +111,29 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    pi.DelegateForSet<T, double>()(ref obj, df[i].As<double>()[row]);
+                    SetProperty<T, double>(ref obj, pi,  df[i].As<double>()[row]);
                 else if (pi.PropertyType == typeof(long))
-                    pi.DelegateForSet<T, long>()(ref obj, df[i].As<long>()[row]);
+                    SetProperty<T, long>(ref obj, pi, df[i].As<long>()[row]);
+                else if (pi.PropertyType == typeof(int))
+                    SetProperty<T, int>(ref obj, pi, df[i].As<int>()[row]);
+                else if (pi.PropertyType == typeof(DateTime))
+                    SetProperty<T,DateTime>(ref obj, pi, df[i].As<DateTime>()[row]);
+
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }
             return obj;
+        }
+
+        public Q GetProperty<T, Q>(T obj, PropertyInfo pi)
+        {
+            return (Q) pi.GetValue(obj);
+            //return pi.DelegateForGet<T, Q>()(obj);
+        }
+
+        public void SetProperty<T, Q>(ref T obj, PropertyInfo pi, Q value)
+        {
+            pi.SetValue(obj, value);
+            //pi.DelegateForSet<T, Q>()(obj, value);
         }
 
         public void Set(DataFrame df, int row, T obj)
@@ -112,9 +142,14 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    df[i].As<double>()[row] = pi.DelegateForGet<T, double>()(obj);
-                else if (pi.PropertyType== typeof(long))
-                    df[i].As<long>()[row] = pi.DelegateForGet<T, long>()(obj);
+                    df[i].As<double>()[row] = GetProperty<T, double>(obj, pi);
+                else if (pi.PropertyType == typeof(long))
+                    df[i].As<long>()[row] = GetProperty<T, long>(obj, pi);
+                else if (pi.PropertyType == typeof(int))
+                    df[i].As<int>()[row] = GetProperty<T, int>(obj, pi);
+                else if (pi.PropertyType == typeof(DateTime))
+                    df[i].As<DateTime>()[row] = GetProperty<T, DateTime>(obj, pi);
+
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }
         }

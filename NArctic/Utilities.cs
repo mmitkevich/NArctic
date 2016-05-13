@@ -6,6 +6,8 @@ using LZ4;
 using System.Linq;
 using System.Configuration;
 using System.Collections;
+using System.Runtime.InteropServices;
+using NArctic;
 
 namespace Utilities
 {
@@ -38,35 +40,26 @@ namespace Utilities
 		}
 	}
 
-	public static class Unsafe
-	{
-		public static unsafe void Memmove(byte *dest, byte *src, ulong len)
-		{
-			for (ulong i = 0; i < len; i++)
-				dest [i] = src [i];
-		}
-	}
+    public class ByteBuffer
+    {
+        private byte[] data;
+        public int Length;
 
-	public class ByteBuffer
-	{
-		private byte[] data;
-		public int Length;
+        public ByteBuffer(int capacity = 32)
+        {
+            data = new byte[capacity];
+        }
 
-		public ByteBuffer(int capacity = 32)
-		{
-			data = new byte[capacity];
-		}
+        public byte[] GetBytes()
+        {
+            if (Length == data.Length)
+                return data;
+            byte[] value = new byte[Length];
+            Array.Copy(data, 0, value, 0, Length);
+            return value;
+        }
 
-		public byte[] GetBytes()
-		{
-			if (Length == data.Length)
-				return data;
-			byte[] value = new byte[Length];
-			Array.Copy (data, 0, value, 0, Length);
-			return value;
-		}
-
-		public void EnsureCapacity(int capacity)
+        public void EnsureCapacity(int capacity)
 		{
 			if (data.Length<capacity) {
 				byte[] next = new byte[capacity * 2];
@@ -82,6 +75,14 @@ namespace Utilities
 			Buffer.BlockCopy (more, 0, data, Length, len);
 			Length += len;
 		}
+
+
+        public void Append<T>(T value)
+        {
+            var s = UnsafeAPI.SizeOf<T>();
+            EnsureCapacity(Length + s);
+            UnsafeAPI.Write<T>(this.data, Length, value);
+        }
 
 		public ByteBuffer AppendDecompress(byte[] encoded)
 		{
@@ -147,5 +148,26 @@ namespace Utilities
 			return val;
 		}
 	}
+
+    public class DateRange
+    {
+        public DateTime StartDate { get; set; }
+        public DateTime StopDate {get; set; }
+
+        public DateRange(DateTime start = default(DateTime), DateTime stop = default(DateTime))
+        {
+            StartDate = start == default(DateTime) ? DateTime.MinValue : start;
+            StopDate = stop == default(DateTime) ? DateTime.MinValue : stop;
+        }
+    }
+
+    public static class Dates
+    {
+        public static DateRange ToDateRange(this DateTime date, int count)
+        {
+            return new DateRange(date, date.AddDays(count));
+        }
+    }
+
 }
 

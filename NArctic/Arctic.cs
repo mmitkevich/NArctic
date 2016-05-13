@@ -48,20 +48,36 @@ namespace NArctic
 			return rtn;
 		}
 
-		public async Task<DataFrame> ReadAsync(string symbol, BsonDocument version=null)
+        public DataFrame Read(string symbol, DateRange daterange=null, BsonDocument version=null)
+        {
+            return this.ReadAsync(symbol, daterange, version).Result;
+        }
+
+        public FilterDefinition<BsonDocument> GetSegmentsFilter(string symbol, DateRange range, BsonDocument version)
+        {
+            var id = version["_id"];
+            var parent = version.GetValue("base_version_id", null);
+            if (parent == null)
+                parent = id;
+
+            var filter = BF.Eq("symbol", symbol) & BF.Eq("parent", version);
+            if (range!=null)
+            {
+                var seg_ind_buf = new ByteBuffer();
+                seg_ind_buf.AppendDecompress(version["segment_index"].AsByteArray);
+            }
+            return filter;
+        }
+
+        public async Task<DataFrame> ReadAsync(string symbol, DateRange daterange=null, BsonDocument version=null)
 		{
 			version = version ?? await ReadVersionAsync(symbol);
 			if (version == null)
 				return null;
 			
 			var buf = new ByteBuffer ();
-			var id = version ["_id"];
-			var parent = version.GetValue ("base_version_id", null);
-			if (parent == null)
-				parent = id;
-			Log.Debug ("version: {0}\nRead segments parent {1}".Args (version, parent));
-			var bf = Builders<BsonDocument>.Filter;
-			var filter = bf.Eq ("symbol", symbol) & bf.Eq ("parent", parent);
+			Log.Debug ("version: {0}".Args (version));
+            var filter = GetSegmentsFilter(symbol, daterange, version);
 			var segments = await this._segments.FindAsync (filter);
 			int segcount = 0;
 			while (await segments.MoveNextAsync ()) {
@@ -78,7 +94,7 @@ namespace NArctic
 				}
 			}
 			if (segcount == 0)
-				throw new InvalidOperationException ("No segments found for {0}".Args (parent));
+				throw new InvalidOperationException ("No segments found for {0}".Args (version));
 			
 			var nrows = version ["up_to"].AsInt32;
 			var dtype = version ["dtype"].AsString;
@@ -145,17 +161,20 @@ namespace NArctic
 			version ["segment_count"] =  previous_version != null ? previous_version ["segment_count"].AsInt32 + 1 : 1;
 			version ["append_count"] = previous_version != null ? previous_version ["append_count"].AsInt32 + 1 : 0;
 
-			var  segment_index = new BsonArray();
+            var seg_ind_buf = new ByteBuffer();
 			int segment_offset = 0;
 
 			//version ["base_sha"] = version ["sha"];
 			if (previous_version != null) {
-				segment_index = previous_version ["segment_index"].AsBsonArray;
+				var seg_ind = previous_version ["segment_index"].AsByteArray;
+                seg_ind_buf.AppendDecompress(seg_ind);
 				segment_offset = previous_version ["up_to"].AsInt32;
 			}
 
-			segment_index.Add (segment_offset);
-			version ["segment_index"] = segment_index;
+            //seg_ind_buf.Append();
+            var seg_ind_buf2 = new ByteBuffer();
+            seg_ind_buf2.AppendCompress(seg_ind_buf.GetBytes());
+			version ["segment_index"] = seg_ind_buf2.GetBytes();
 			version ["up_to"] = segment_offset + df.Rows.Count;
 			var buf = new ByteBuffer();
 			var bin = df.ToBuffer ();
