@@ -157,7 +157,7 @@ namespace NArctic
                     cur.Size = 8;
 				} else if (val == "<i8") {
 					cur.Type = typeof(long);
-                    if (sizeof(long) != 4)
+                    if (sizeof(long) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;
 				} else if (val == "<i4") {
@@ -167,7 +167,6 @@ namespace NArctic
 					cur.Size = 4;
 				} else if (val == "<M8[ns]") {
 					cur.Type = typeof(DateTime);
-                    cur.Type = typeof(long);
                     if (sizeof(long) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;

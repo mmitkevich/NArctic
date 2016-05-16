@@ -107,7 +107,12 @@ namespace NArctic
 				return Series<double>.FromBuffer (buf, buftype, iheight, icol);
 			}else if (buftype.Fields[icol].Type == typeof(long)) {
 				return Series<long>.FromBuffer (buf, buftype, iheight, icol);
-			}else if (buftype.Fields[icol].Type == typeof(DateTime)) {
+            }
+            else if (buftype.Fields[icol].Type == typeof(int))
+            {
+                return Series<int>.FromBuffer(buf, buftype, iheight, icol);
+            }
+            else if (buftype.Fields[icol].Type == typeof(DateTime)) {
 				return DateTimeSeries.FromBuffer (buf, buftype, iheight, icol, DateTime64.ToDateTime, DateTime64.ToDateTime64);
 			}else
 				throw new InvalidOperationException("Failed decode {0} type".Args(buftype.Fields[icol].Type));
@@ -138,7 +143,7 @@ namespace NArctic
 
 		public static implicit operator Series(DateTime[] data) 
 		{
-			return new DateTimeSeries (new NdArray<long>(data.Select(DateTime64.ToDateTime64).ToArray()));
+			return new DateTimeSeries (new Series<long>(new NdArray<long>(data.Select(DateTime64.ToDateTime64).ToArray())));
 		}
 
 
@@ -197,6 +202,12 @@ namespace NArctic
             set { throw new NotSupportedException(); }
         }
 
+        public virtual T[] AsArray()
+        {
+            throw new NotSupportedException();
+        }
+        public abstract BaseSeries<T> Copy();
+
         #region IList<T>
         public virtual IEnumerator<T> GetEnumerator () {
 			for (int i = 0; i < Count; i++)
@@ -253,7 +264,7 @@ namespace NArctic
 
 	public class Series<T, Q> : BaseSeries<T>
 	{
-		public Series<Q> Source;
+		public BaseSeries<Q> Source;
 
 		static Q tq(T t) {
 			return (Q)(object)t;
@@ -266,7 +277,7 @@ namespace NArctic
 		protected Func<T,Q> setter = tq;
 		protected Func<Q,T> getter = qt;
 
-		public Series(Series<Q> source, Func<Q,T> getter, Func<T,Q> setter, DType dtype=null) 
+		public Series(BaseSeries<Q> source, Func<Q,T> getter, Func<T,Q> setter, DType dtype=null) 
 			: base(dtype)
 		{
 			Source = source;
@@ -290,10 +301,15 @@ namespace NArctic
 
 		public override Series Clone ()
 		{
-			return new Series<T,Q> (Source.Clone () as Series<Q>, getter, setter, DType);
+            return Copy();
 		}
 
-		public override IEnumerator<T> GetEnumerator() 
+        public override BaseSeries<T> Copy()
+        {
+            return new Series<T, Q>(Source.Copy() as Series<Q>, getter, setter, DType);
+        }
+
+        public override IEnumerator<T> GetEnumerator() 
 		{
 			foreach(var q in Source)
 				yield return getter(q);
@@ -316,7 +332,7 @@ namespace NArctic
 
 		public override Series this [Range range] {
 			get {
-				return new Series<T,Q>(Source[range] as Series<Q>,getter,setter);
+				return new Series<T,Q>(Source[range] as Series<Q>, getter, setter, DType.Clone());
 			}
 		}
 
@@ -336,23 +352,40 @@ namespace NArctic
 
 		public override string ToString ()
 		{
-			return "NdArray<{0}>({1}): {2}".Args (typeof(T).Name, Count, " ".Joined (this));
+			return "NdArray<{0}>({1}): {2}".Args (typeof(T).Name, Count);
 		}
 
 	}
 
     public class DateTimeSeries : Series<DateTime,long>
     {
-        public DateTimeSeries(long count)
-            : base(new Series<long>(count), getter: DateTime64.ToDateTime, setter: DateTime64.ToDateTime64)
+        public DateTimeSeries(long count, DType dtype=null)
+            : this(new Series<long>(count))
         { 
         }
 
-        public DateTimeSeries(NdArray<long> array)
-            : base(new Series<long>(array), getter: DateTime64.ToDateTime, setter: DateTime64.ToDateTime64)
+        //public DateTimeSeries(NdArray<long> array, DType dtype=null)
+        //    : this(new Series<long>(array))
+        //{
+        //}
+
+        public DateTimeSeries(BaseSeries<long> source, DType dtype=null)
+            :base(source, getter: DateTime64.ToDateTime, setter: DateTime64.ToDateTime64, dtype: dtype ?? DType.DateTime64)
         {
+
         }
 
+        public override Series Clone()
+        {
+            return new DateTimeSeries(Source.Copy(), DType.Clone());
+        }
+        public override Series this[Range range]
+        {
+            get
+            {
+                return new DateTimeSeries(Source[range].As<long>(), this.DType.Clone());
+            }
+        }
 
         public static BaseSeries<DateTime> Range(int count, DateTime start, DateTime end)
         {
@@ -360,7 +393,7 @@ namespace NArctic
             var r = new NdArray<long>(new Shape(count));
             for (int i = 0; i < r.Count(); i++)
                 r.Value[i] = start.ToDateTime64() + delta * i;
-            return new Series<DateTime, long>(r,
+            return new Series<DateTime, long>(new Series<long>(r),
                 getter: DateTime64.ToDateTime,
                 setter: DateTime64.ToDateTime64);
         }
@@ -369,15 +402,15 @@ namespace NArctic
 
     public class Series<T> : BaseSeries<T>
 	{
-		public NdArray<T> Values { get; set;}
+		public override NdArray<T> Values { get; set;}
 
-		public NumCIL.Double.NdArray AsDouble {
-			get {
-				return new NumCIL.Double.NdArray (Values as NdArray<double>);
-			}
-		}
+		//public override NumCIL.Double.NdArray AsDouble {
+		//	get {
+		//		return new NumCIL.Double.NdArray (Values as NdArray<double>);
+		//	}
+		//}
 
-        public Series(long count) : base(null)
+        public Series(long count, DType dtype=null) : base(dtype)
         {
             Values = new NdArray<T>(new Shape(count));
         }
@@ -445,9 +478,9 @@ namespace NArctic
 			return Copy();
 		}
 
-		public Series<T> Copy()
+		public override BaseSeries<T> Copy()
 		{
-			return new Series<T> (this.Values.Clone (), DType);
+			return new Series<T> (this.Values.Clone (), DType.Clone());
 		}
 
 
@@ -474,7 +507,7 @@ namespace NArctic
 
 		public override Series this [Range range] {
 			get {
-				return new Series<T>(Values[range]);
+				return new Series<T>(Values[range], this.DType.Clone());
 			}
 		}
 

@@ -50,6 +50,12 @@ namespace NArctic
             throw new ArgumentException(freq);
         }
 
+        public static string Minutes = "M";
+        public static string Years = "Y";
+        public static string Days = "D";
+        public static string Seconds = "s";
+        public static string Milliseconds = "ms";
+
         public static TimeSpan TimeFreq(string freq)
         {
             if (freq == "Y")
@@ -78,10 +84,10 @@ namespace NArctic
 		public static Dictionary<Type,string> Formats = new Dictionary<Type,string> ();
 		public static string sep = ", ";
 	 
-		public static DType DateTime64 = new DType("'<M8[ns]'");
-		public static DType Long = new DType("'<i8'");
-        public static DType Int = new DType("'<i4'");
-        public static DType Double = new DType("'<f8'");
+		public static DType DateTime64 { get { return new DType("'<M8[ns]'"); } }
+		public static DType Long { get { return new DType("'<i8'"); } }
+        public static DType Int { get { return new DType("'<i4'"); } } 
+        public static DType Double { get { return new DType("'<f8'"); } }
 
 		static DType()
 		{
@@ -99,6 +105,23 @@ namespace NArctic
 		{
 			new DTypeParser ().Parse (spec, 0, this);
 		}
+
+        public DType Clone()
+        {
+            var clone = new DType(this.Type)
+            {
+                Name = this.Name,
+                Size = this.Size,
+                Format = this.Format
+            };
+            foreach (var f in Fields)
+            {
+                var ff = f.Clone();
+                ff.Parent = this;
+                clone.Fields.Add(ff);
+            }
+            return clone;
+        }
 
 		public int FieldOffset(int ifield)
 		{

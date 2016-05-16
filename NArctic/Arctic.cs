@@ -19,21 +19,28 @@ namespace NArctic
 {
 	public class Arctic
 	{
-		protected IMongoDatabase _db;
+        public MongoClient Mongo { get; set; }
+        public IMongoDatabase Db
+        {
+            get; set;
+        }
 		protected IMongoCollection<BsonDocument> _versions;
 		protected IMongoCollection<BsonDocument> _segments;
 		protected IMongoCollection<BsonDocument> _version_numbers;
 
-		public static string SEGMENTS  = "securities";
-		public static string VERSIONS = SEGMENTS + "." + "versions";
-		public static string VERSION_NUMBERS = SEGMENTS + "." + "version_nums";
-
-		public Arctic(IMongoDatabase db)
+        public static string PREFIX = "arctic_";
+		public Arctic(MongoClient mongo, string lib, bool purge=false)
 		{
-			this._db = db;
-			this._versions = _db.GetCollection<BsonDocument>(VERSIONS);
-			this._segments = _db.GetCollection<BsonDocument>(SEGMENTS);
-			this._version_numbers = _db.GetCollection<BsonDocument> (VERSION_NUMBERS);
+            string[] items = lib.Split(new[] { '.' }, 2);
+            var db = PREFIX+items[0];
+            this.Mongo = mongo;
+            if (purge)
+                this.Mongo.DropDatabase(db);
+            this.Db = mongo.GetDatabase(db);
+            var name = items[1];
+			this._versions = Db.GetCollection<BsonDocument>(name+".versions");
+			this._segments = Db.GetCollection<BsonDocument>(name);
+			this._version_numbers = Db.GetCollection<BsonDocument> (name+".version_nums");
 		}
 
 		public async Task<BsonDocument> ReadVersionAsync(string symbol)
@@ -60,7 +67,7 @@ namespace NArctic
             if (parent == null)
                 parent = id;
 
-            var filter = BF.Eq("symbol", symbol) & BF.Eq("parent", version);
+            var filter = BF.Eq("symbol", symbol) & BF.Eq("parent", parent);
             if (range!=null)
             {
                 var seg_ind_buf = new ByteBuffer();
@@ -102,7 +109,12 @@ namespace NArctic
 			var bytes = buf.GetBytes ();
 			Log.Debug ("converting to dataframe up_to={0} dtype={1} len={2}".Args (nrows, dtype, bytes.Length));
 			var df = DataFrame.FromBuffer(buf.GetBytes(), buftype, nrows);
-			return df;			
+            var meta = version["dtype_metadata"].AsBsonDocument;
+            var index_name = meta.GetValue("index", null);
+            if (index_name != null) {
+                df.Index = df.Columns[index_name.AsString];
+            }
+            return df;			
 		}
 
 		internal static FilterDefinitionBuilder<BsonDocument> BF {get{ return Builders<BsonDocument>.Filter;} }
@@ -125,6 +137,9 @@ namespace NArctic
 
 		public async Task<BsonDocument> AppendAsync(string symbol, DataFrame df, int chunksize=0)
 		{
+            if (df.Index == null)
+                throw new ArgumentException("Please specify DataFrame.Index column before saving");
+
             if(chunksize>0 && df.Rows.Count>chunksize)
             {
                 var rng = Range.R(0, chunksize);
@@ -139,22 +154,29 @@ namespace NArctic
                 return ver;
             }
 
-			var version = await GetNewVersion (symbol, await ReadVersionAsync(symbol));
+            var previous_version = await ReadVersionAsync(symbol);
+            var version = await GetNewVersion (symbol, previous_version);
 
-			var previous_version = await (_versions.AsQueryable ()
+			/*var previous_version = await (_versions.AsQueryable ()
 				.Where (v => v ["symbol"] == symbol && v ["version"] < version ["version"])
 				.OrderByDescending (v => v ["version"]) as IAsyncCursorSource<BsonDocument>)
-				.FirstOrDefaultAsync ();
-			var dtype = version.GetValue ("dtype", null);
-			if (dtype!=null && df.DType.ToString()!=dtype) {
+				.FirstOrDefaultAsync ();*/
+
+			var dtype = version.GetValue ("dtype", "").ToString();
+            Console.WriteLine("loaded dtype {0}", dtype);
+            if (dtype!="" && df.DType.ToString()!=dtype) {
 				// dtype changed. need reload old data and repack it.
 				throw new NotImplementedException("old dtype {0}, new dtype {1}: not implemented".Args(dtype,df.DType));
 			}
 
-			version ["dtype"] = df.DType.ToString();
+            var sdt = df.DType.ToString();
+
+            version ["dtype"] = sdt;
+            Console.WriteLine("saved dtype {0}", sdt);
+
 			version ["shape"] = new BsonArray{ {-1} };
 			version ["dtype_metadata"] = new BsonDocument { 
-				{ "index", new BsonArray { { "index" } } } ,
+				{ "index", new BsonArray { { df.Index.Name } } } ,
 				{ "columns", new BsonArray(df.Columns.Select(c=>c.Name).ToList()) }
 			};
 			version ["type"] = "pandasdf";
@@ -242,7 +264,7 @@ namespace NArctic
 											ReturnDocument = ReturnDocument.After 
 										}
 			                       );
-			version ["version"] = version_num!=null ? version_num["version"] : 1;
+			version ["version"] = version_num.Get(v=>v["version"], 1);
 			if(version.GetValue("_id",null)==null)
 				version ["_id"] = new BsonObjectId (ObjectId.GenerateNewId ());
 			version ["symbol"] = symbol;

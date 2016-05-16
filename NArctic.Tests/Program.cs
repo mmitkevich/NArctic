@@ -37,11 +37,9 @@ namespace NArctic.Tests
 			TestDType ("[('index', '<M8[ns]'), ('Open', '<f8'), ('Close', '<f8'), ('Adj Close', '<f8'), ('High', '<f8'), ('Low', '<f8'), ('Volume', '<i8')]");
 		}
 
-		public static void TestReadArctic(string dbname="arctic_bench", string host="localhost", string symbol="S1"){
+		public static void TestReadArctic(string lib="bench.securities", string host="localhost", string symbol="S1"){
 			var driver = new MongoClient ("mongodb://"+host);
-			var db = driver.GetDatabase (dbname);
-
-			var arctic = new Arctic (db);
+			var arctic = new Arctic (driver, lib);
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
 			var df = arctic.ReadAsync (symbol).Result;
@@ -58,8 +56,8 @@ namespace NArctic.Tests
 		{
             Console.WriteLine("RandomWalk generating {0}".Args(count));
 			var df = new DataFrame { 
-				Series.DateTimeRange(count, start, stop),
-				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-5).CumSum().Exp())
+				DateTimeSeries.Range(count, start, stop),
+				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-4).CumSum().Exp())
 			};
 			Console.WriteLine (df);
 			return df;
@@ -87,14 +85,9 @@ namespace NArctic.Tests
 			return RandomWalk (count, start, start+delta.Mul(count));
 		}
 
-		public static void TestWriteArctic(string dbname="arctic_net", string host="localhost", bool purge=true, bool del=true, string symbol="S1") {
+		public static void TestWriteArctic(string lib="net.securities", string host="localhost", bool purge=true, bool del=true, string symbol="S1") {
 			var driver = new MongoClient ("mongodb://"+host);
-			if (purge)
-				driver.DropDatabase (dbname);
-			
-			var db = driver.GetDatabase (dbname);
-
-			var arctic = new Arctic (db);
+			var arctic = new Arctic (driver, lib, purge:purge);
 
 			if(del) {
 				var delcnt = arctic.DeleteAsync(symbol).Result;
@@ -103,25 +96,27 @@ namespace NArctic.Tests
 
 			//var df = SampleDataFrame ();
 			var df = RandomDataFrame();
-			var df2 = SampleDataFrame (df[0].AsDateTime()[-1]);
+			//var df2 = SampleDataFrame (df[0].AsDateTime()[-1]);
 
 			Stopwatch sw = new Stopwatch ();
 			sw.Start ();
 			var version = arctic.AppendAsync (symbol, df, CHUNKSIZE).Result;
-			var version2 = arctic.AppendAsync (symbol, df2, CHUNKSIZE).Result;
+			//var version2 = arctic.AppendAsync (symbol, df2, CHUNKSIZE).Result;
 			sw.Stop ();
-			long rows = df.Rows.Count + df2.Rows.Count;
+            long rows = df.Rows.Count;// + df2.Rows.Count;
 			Console.WriteLine ("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args (rows, sw.Elapsed.TotalSeconds, rows/sw.Elapsed.TotalSeconds, version));
 		}
 
         public static void TestCircularDataframe()
         {
-            var df = new DataFrame(10, typeof(double), typeof(long));
+            var df = new DataFrame(10, new[] { typeof(double), typeof(long) },new[] { "Dbl", "Lng"});
+            var rng = df.ToRing();
+
             for(int i=0;i<20;i++)
             {
-                var head = df.Ring.Enqueue();
+                var head = rng.Enqueue();
                 df[0].As<double>()[head] = i;
-                var tail = df.Ring.Dequeue();
+                var tail = rng.Dequeue();
                 Console.WriteLine("step {0}\n{1}".Args(i,df));
             }
         }
@@ -144,13 +139,13 @@ namespace NArctic.Tests
             {
                 tf[i] = new TestClass { Dbl = 10.5*i, Lng = i };
             }
-
-            tf.Enqueue(new TestClass { Dbl = 1000, Lng = 2222 });
-            tf.Enqueue(new TestClass { Dbl = 1001, Lng = 2222 });
+            var rng = tf.ToRing();
+            rng.Enqueue(new TestClass { Dbl = 1000, Lng = 2222 });
+            rng.Enqueue(new TestClass { Dbl = 1001, Lng = 2222 });
 
             Console.WriteLine(tf.DataFrame);
             Console.WriteLine("tf[5]="+tf[5]);
-            Console.WriteLine("tf.dequeue="+tf.Dequeue());
+            Console.WriteLine("tf.dequeue="+rng.Dequeue());
 
             var tfx = new TypedFrame<TestClass>(tf.DataFrame);
 
@@ -198,10 +193,10 @@ namespace NArctic.Tests
             TestCircularDataframe();
 
             TestReflection();
-#if false
-            TestWriteArctic("arctic_net",purge:false,del:true);
-            TestReadArctic("arctic_net");
-#endif
+
+            TestWriteArctic("net.securities",purge:true,del:true);
+            TestReadArctic("net.securities");
+
             Console.WriteLine ("DONE");
 		}
 	}

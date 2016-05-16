@@ -41,8 +41,9 @@ namespace NArctic
 			this.Series.Add (s);
             this.SeriesByName[s.Name] = s;
             if(SeriesListChanged!=null)
-			    SeriesListChanged(this, new Series[]{s}, new Series[0]);
+			    SeriesListChanged(this, new Series[0], new Series[] { s });
 			this.DType.Fields.Add (s.DType);
+            s.DType.Parent = this.DType;
 			return this.Series.Count - 1;
 		}
 
@@ -76,8 +77,9 @@ namespace NArctic
     {
         public int Head;    // Free index (write to it)
         public int Tail;    // First used index (read from it)
+        public Func<int> Capacity;
 
-        public Ring(int capacity)
+        public Ring(Func<int> capacity)
         {
             this.Capacity = capacity;
             this.Head = 0;
@@ -88,21 +90,22 @@ namespace NArctic
         {
             get
             {
-                if (Head <= Tail)
-                    return new[] { Range.R(Head, Tail) };
+                if (Tail <= Head)
+                    return new[] { Range.R(Tail, Head) };
                 else
-                    return new[] { Range.R(Head, Capacity), Range.R(0, Tail) };
+                    return new[] { Range.R(Tail, Capacity()), Range.R(0, Head) };
             }
         }
 
 
         public int Enqueue()
         {
-            int next = (Head + 1) % Capacity;
+            int next = (Head + 1) % Capacity();
             if (next == Tail)
                 return -1;
             int head = Head;
             Head = next;
+            //Console.WriteLine("Head={0}", Head);
             return head;
         }
 
@@ -112,12 +115,14 @@ namespace NArctic
                 return -1;
             int tail = Tail;
             Tail = (Tail + 1) % Count;
+            //Console.WriteLine("Tail={0}", Tail);
             return tail;
         }
 
         public void Clear()
         {
-            Head = Tail;
+            //Console.WriteLine("Clear Tail={0} to Head={1}", Tail, Head);
+            Tail = Head = 0;
         }
 
         public IEnumerator<int> GetEnumerator()
@@ -126,7 +131,7 @@ namespace NArctic
             while (head != Tail)
             {
                 yield return head;
-                head = (head + 1) % Capacity;
+                head = (head + 1) % Capacity();
             }
         }
 
@@ -141,12 +146,10 @@ namespace NArctic
             {
                 int used = (Head - Tail);
                 if (used < 0)
-                    used = Head + Capacity - Tail;
+                    used = Head + Capacity() - Tail;
                 return used;
             }
         }
-
-        public int Capacity { get; set; }
     }
 
     public class RowsList : IEnumerable<object[]>
@@ -159,15 +162,6 @@ namespace NArctic
 			this.df = df;
 		}
 
-        public DataFrame Slice(Range rng)
-        {
-            var rtn = new DataFrame();
-            foreach (var col in df.Columns)
-            {
-                rtn.Columns.Add(col[rng]);
-            }
-            return rtn;
-        }
 
 		public object[] this[int row] 
 		{
@@ -348,7 +342,7 @@ namespace NArctic
 	{
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
-        public Ring Ring;
+        public Series Index;
 
         public DType DType {
 			get { return Columns.DType; } 
@@ -356,36 +350,48 @@ namespace NArctic
 
 		public DataFrame()
 		{
-            Ring = new Ring(0);
             Rows = new RowsList (this);
 			Columns.SeriesListChanged += this.OnColumnsChanged;
 		}
 
-		public DataFrame(IEnumerable<Series> series)
+		public DataFrame(IEnumerable<Series> series, string index=null)
 			: this()
 		{
 			foreach (var x in series) {
 				this.Columns.Add (x);
 			}
+            this.Index = index.Get(i => this.Columns[i]);
 		}
 
-        public DataFrame(long count, Type[] types, string[] names) 
+        public DataFrame(long count, Type[] types, string[] names=null, string index=null) 
             : this()
         {
+            Func<int, string> getname = i => names != null && i < names.Length ? names[i] : "{0}".Args(i);
+
             for(int i=0;i<types.Length;i++)
             {
                 Type t = types[i];
                 if (t == typeof(double))
-                    Columns.Add(new Series<double>(count),names[i]);
+                    Columns.Add(new Series<double>(count),getname(i));
                 else if (t == typeof(long))
-                    Columns.Add(new Series<long>(count),names[i]);
+                    Columns.Add(new Series<long>(count), getname(i));
                 else if (t == typeof(DateTime))
-                    Columns.Add(new DateTimeSeries(count), names[i]);
+                    Columns.Add(new DateTimeSeries(count), getname(i));
                 else if (t == typeof(int))
-                    Columns.Add(new Series<int>(count), names[i]);
+                    Columns.Add(new Series<int>(count), getname(i));
                 else
                     throw new ArgumentException("Type {0} not supported".Args(t));
             }
+        }
+
+        public TypedFrame<T> As<T>() where T:new()
+        {
+            return new TypedFrame<T>(this);
+        }
+
+        public Ring ToRing()
+        {
+            return new Ring(() => this.Rows.Count);
         }
 
         public Series this[string column]
@@ -395,21 +401,23 @@ namespace NArctic
 
         public DataFrame Clone() 
 		{
-			var df = new DataFrame (this.Columns.Select(x=>x.Clone()));
+			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Get(i=>i.Name));
+
 			return df;
 		}
 
 		public void OnColumnsChanged(SeriesList series, IEnumerable<Series> removed, IEnumerable<Series> added)
 		{
 			Rows.OnColumnsChanged (series, removed, added);
-            Ring.Capacity = Rows.Count;
 		}
 
 		public DataFrame this [Range range] {
 			get {
-                return Rows.Slice(range);
-			}
-		}
+                var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Get(i=>i.Name));
+                return rtn;
+
+            }
+        }
 
         public DataFrame Head(int count)
         {

@@ -147,6 +147,11 @@ namespace Utilities
 			dict.Add(key, val=getval(key));
 			return val;
 		}
+
+        public static TValue Get<T, TValue>(this T nullable, Func<T,TValue> getter, TValue def=default(TValue)) where T : class
+        {
+            return nullable == null ? def : getter(nullable);
+        }
 	}
 
     public class DateRange

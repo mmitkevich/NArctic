@@ -10,6 +10,40 @@ using Utilities;
 
 namespace NArctic
 {
+    public class RingFrame<T>:Ring where T :new()
+    {
+        public TypedFrame<T> TypedFrame;
+        public DataFrame DataFrame {
+            get { return TypedFrame.DataFrame;  }
+        }
+
+        public RingFrame(TypedFrame<T> tf) : base(()=>tf.DataFrame.Rows.Count)
+        {
+            this.TypedFrame = tf;
+        }
+        public int Enqueue(T value)
+        {
+            var r = base.Enqueue();
+            if (r < 0)
+                return -1;
+            TypedFrame[r] = value;
+            return r;
+        }
+
+        public bool Add(T value)
+        {
+            return Enqueue(value) >= 0;
+        }
+
+        public T Dequeue()
+        {
+            int r = base.Dequeue();
+            if (r < 0)
+                throw new InvalidOperationException("Empty queue");
+            return TypedFrame[r];
+        }
+    }
+
     public class TypedFrame<T> where T :new()
     {
         public static List<PropertyInfo> GetSettableProps(Type t)
@@ -48,12 +82,14 @@ namespace NArctic
         public Dictionary<string, PropertyInfo> Props;
         public string[] Keys;
         public DataFrame DataFrame;
+        public string Index;
 
-        public TypedFrame(long count, string[] keys=null)
+        public TypedFrame(long count, string index=null, string[] keys=null)
         {
             var type = typeof(T);
             Props = GetSettableProps(type).ToDictionary(x=>x.Name);
             Keys = keys ?? Props.Keys.ToArray();
+            Index = index;
             if(count>0)
                 DataFrame = CreateDataFrame(count);
         }
@@ -66,40 +102,11 @@ namespace NArctic
             DataFrame = df;
         }
 
-        public int Enqueue(T value)
-        {
-            var r = this.DataFrame.Ring.Enqueue();
-            this[r] = value; 
-            return r;
-        }
-
-        public bool Add(T value)
-        {
-            return Enqueue(value)>=0;
-        }
-
-        public void Clear()
-        {
-            DataFrame.Ring.Clear();
-        }
-
-        public T Dequeue()
-        {
-            int r = this.DataFrame.Ring.Dequeue();
-            if (r < 0)
-                throw new InvalidOperationException("Empty queue");
-            return this[r];
-        }
-
-        public int QueueCount
-        {
-            get { return this.DataFrame.Ring.Count; }
-        }
-
         public DataFrame CreateDataFrame(long count)
         {
             var types = Keys.Select(k => Props[k].PropertyType).ToArray();
-            var df = new DataFrame(count, types, Keys);
+            var df = new DataFrame(count, types, Keys, index:Index);
+            df.Index = df.Columns[this.Index];
             DataFrame = df;
             return df;
         }
@@ -166,5 +173,11 @@ namespace NArctic
         {
             get { return DataFrame.Rows.Count; }
         }
+
+        public RingFrame<T> ToRing()
+        {
+            return new RingFrame<T>(this);
+        }
+
     }
 }
