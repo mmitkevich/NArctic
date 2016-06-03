@@ -449,7 +449,7 @@ namespace NArctic
 				throw new InvalidOperationException("buf length is {0} but {1} expected".Args(buf.Length, bytesPerRow*iheight));
 			for (int i = 0; i < buftype.Fields.Count; i++) {
 				var s = Series.FromBuffer (buf, buftype, iheight, i); 
-				s.Name = buftype.Name ?? "[{0}]".Args (i);
+				s.Name = buftype.Fields[i].Name ?? "[{0}]".Args (i);
 				df.Columns.Add (s);
 				df.Rows.Count = Math.Max (df.Rows.Count, s.Count);
 			}

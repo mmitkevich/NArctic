@@ -109,7 +109,7 @@ namespace Utilities
 		}
 	}
 
-	public static class Dictionary
+	public static class Collections
 	{
 		public static TValue Get<TKey,TValue>(this IDictionary<TKey, TValue> dict, TKey key, TValue def = default(TValue))
 		{
@@ -152,6 +152,7 @@ namespace Utilities
         {
             return nullable == null ? def : getter(nullable);
         }
+
 	}
 
     public class DateRange

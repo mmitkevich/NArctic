@@ -29,21 +29,33 @@ namespace NArctic
 		protected IMongoCollection<BsonDocument> _version_numbers;
 
         public static string PREFIX = "arctic_";
+        protected string Name;
+
 		public Arctic(MongoClient mongo, string lib, bool purge=false)
 		{
             string[] items = lib.Split(new[] { '.' }, 2);
             var db = PREFIX+items[0];
             this.Mongo = mongo;
             if (purge)
-                this.Mongo.DropDatabase(db);
+            {
+                Log.Information("Dropped database '{database}'", db);
+                //this.Mongo.DropDatabase(db);
+            }
             this.Db = mongo.GetDatabase(db);
             var name = items[1];
+            Console.WriteLine("Connected mongo lib='{0}' db='{1}'".Args(lib, db));
 			this._versions = Db.GetCollection<BsonDocument>(name+".versions");
 			this._segments = Db.GetCollection<BsonDocument>(name);
 			this._version_numbers = Db.GetCollection<BsonDocument> (name+".version_nums");
+            this.Name = db;
 		}
 
-		public async Task<BsonDocument> ReadVersionAsync(string symbol)
+        public override string ToString()
+        {
+            return "Arctic('{0}')".Args(this.Name);
+        }
+
+        public async Task<BsonDocument> ReadVersionAsync(string symbol)
 		{
 			Log.Debug("reading {symbol} version", symbol);
 			IAsyncCursorSource<BsonDocument> versions = this._versions.AsQueryable ()
@@ -110,7 +122,7 @@ namespace NArctic
 			Log.Debug ("converting to dataframe up_to={0} dtype={1} len={2}".Args (nrows, dtype, bytes.Length));
 			var df = DataFrame.FromBuffer(buf.GetBytes(), buftype, nrows);
             var meta = version["dtype_metadata"].AsBsonDocument;
-            var index_name = meta.GetValue("index", null);
+            var index_name = meta.GetValue("index", new BsonArray()).AsBsonArray[0];
             if (index_name != null) {
                 df.Index = df.Columns[index_name.AsString];
             }
@@ -120,6 +132,11 @@ namespace NArctic
 		internal static FilterDefinitionBuilder<BsonDocument> BF {get{ return Builders<BsonDocument>.Filter;} }
 		internal static UpdateDefinitionBuilder<BsonDocument> BU {get{ return Builders<BsonDocument>.Update;} }
 		internal static UpdateOptions Upsert = new UpdateOptions{ IsUpsert = true };
+
+        public long Delete(string symbol)
+        {
+            return DeleteAsync(symbol).Result;
+        }
 
 		public async Task<long> DeleteAsync(string symbol)
 		{
@@ -163,7 +180,7 @@ namespace NArctic
 				.FirstOrDefaultAsync ();*/
 
 			var dtype = version.GetValue ("dtype", "").ToString();
-            Console.WriteLine("loaded dtype {0}", dtype);
+            Log.Debug("loaded dtype {0}", dtype);
             if (dtype!="" && df.DType.ToString()!=dtype) {
 				// dtype changed. need reload old data and repack it.
 				throw new NotImplementedException("old dtype {0}, new dtype {1}: not implemented".Args(dtype,df.DType));
@@ -172,7 +189,7 @@ namespace NArctic
             var sdt = df.DType.ToString();
 
             version ["dtype"] = sdt;
-            Console.WriteLine("saved dtype {0}", sdt);
+            Log.Debug("saved dtype {0}", sdt);
 
 			version ["shape"] = new BsonArray{ {-1} };
 			version ["dtype_metadata"] = new BsonDocument { 

@@ -202,6 +202,12 @@ namespace NArctic
             set { throw new NotSupportedException(); }
         }
 
+        public Tuple<T, T> Range {
+            get {
+                return new Tuple<T,T>(this[-1], this[0]);
+            }
+        }
+
         public virtual T[] AsArray()
         {
             throw new NotSupportedException();

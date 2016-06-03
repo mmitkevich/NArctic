@@ -80,15 +80,16 @@ namespace NArctic
         }
 
         public Dictionary<string, PropertyInfo> Props;
+        public Action<T, int>[] Writers;
+        public Action<T, int>[] Readers;
         public string[] Keys;
         public DataFrame DataFrame;
         public string Index;
 
+
         public TypedFrame(long count, string index=null, string[] keys=null)
         {
-            var type = typeof(T);
-            Props = GetSettableProps(type).ToDictionary(x=>x.Name);
-            Keys = keys ?? Props.Keys.ToArray();
+            Init(typeof(T),keys);
             Index = index;
             if(count>0)
                 DataFrame = CreateDataFrame(count);
@@ -96,17 +97,45 @@ namespace NArctic
 
         public TypedFrame(DataFrame df, string[] keys = null)
         {
-            var type = typeof(T);
-            Props = GetSettableProps(type).ToDictionary(x => x.Name);
-            Keys = keys ?? Props.Keys.ToArray();
+            Init(typeof(T), keys);
             DataFrame = df;
         }
+
+        private void Init(Type type, string[] keys)
+        {
+            Props = GetSettableProps(type).ToDictionary(x => x.Name);
+            Keys = keys ?? Props.Keys.ToArray();
+            Readers = new Action<T,int>[Keys.Length];
+            Writers = new Action<T, int>[Keys.Length];
+            for (int i = 0; i < Keys.Length; i++)
+            {
+                var pi = Props[Keys[i]];
+                if (pi.PropertyType == typeof(double))
+                    InitRW<double>(pi, i);
+                else if (pi.PropertyType == typeof(long))
+                    InitRW<long>(pi, i);
+                else if (pi.PropertyType == typeof(int))
+                    InitRW<int>(pi, i);
+                else if (pi.PropertyType == typeof(DateTime))
+                    InitRW<DateTime>(pi, i);
+
+                else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
+            }
+        }
+
+        private void InitRW<Q>(PropertyInfo pi, int i)
+        {
+            Writers[i] = (T obj, int row) => DataFrame[i].As<Q>()[row] = pi.DelegateForGet<T, Q>()(obj);
+            Readers[i] = (T obj, int row) => pi.DelegateForSet<T, Q>()(ref obj, DataFrame[i].As<Q>()[row]);
+        }
+
 
         public DataFrame CreateDataFrame(long count)
         {
             var types = Keys.Select(k => Props[k].PropertyType).ToArray();
             var df = new DataFrame(count, types, Keys, index:Index);
-            df.Index = df.Columns[this.Index];
+            if(this.Index!=null)
+                df.Index = df.Columns[this.Index];
             DataFrame = df;
             return df;
         }
@@ -133,14 +162,14 @@ namespace NArctic
 
         public Q GetProperty<T, Q>(T obj, PropertyInfo pi)
         {
-            return (Q) pi.GetValue(obj);
-            //return pi.DelegateForGet<T, Q>()(obj);
+            //return (Q) pi.GetValue(obj);
+            return pi.DelegateForGet<T, Q>()(obj);
         }
 
         public void SetProperty<T, Q>(ref T obj, PropertyInfo pi, Q value)
         {
-            pi.SetValue(obj, value);
-            //pi.DelegateForSet<T, Q>()(obj, value);
+            //pi.SetValue(obj, value);
+            pi.DelegateForSet<T, Q>()(ref obj, value);
         }
 
         public void Set(DataFrame df, int row, T obj)
@@ -163,9 +192,17 @@ namespace NArctic
 
         public T this[int row]
         {
-            get { return Get(DataFrame, row); }
+            get {
+                //return Get(DataFrame, row);
+                T obj = new T();
+                for (int i = 0; i < Keys.Length; i++)
+                    Readers[i](obj, row);
+                return obj;
+            }
             set {
-                Set(DataFrame, row, value);
+                //Set(DataFrame, row, value);
+                for (int i = 0; i < Keys.Length; i++)
+                    Writers[i](value, row);
             }
         }
         

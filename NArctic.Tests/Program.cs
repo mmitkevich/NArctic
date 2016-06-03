@@ -57,8 +57,9 @@ namespace NArctic.Tests
             Console.WriteLine("RandomWalk generating {0}".Args(count));
 			var df = new DataFrame { 
 				DateTimeSeries.Range(count, start, stop),
-				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-4).CumSum().Exp())
+				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-4).CumSum().Exp()),
 			};
+            df.Index = df[0];
 			Console.WriteLine (df);
 			return df;
 		}
@@ -192,10 +193,9 @@ namespace NArctic.Tests
 
             TestCircularDataframe();
 
-            TestReflection();
-
             TestWriteArctic("net.securities",purge:true,del:true);
             TestReadArctic("net.securities");
+            TestReflection();
 
             Console.WriteLine ("DONE");
 		}
