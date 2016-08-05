@@ -60,6 +60,11 @@ namespace NArctic
             }
         }
 
+        public bool Contains(string column)
+        {
+            return SeriesByName.ContainsKey(column);
+        }
+
 		public string ToString(object[] args)
 		{
 			return DType.sep.Joined (
@@ -354,33 +359,33 @@ namespace NArctic
 			Columns.SeriesListChanged += this.OnColumnsChanged;
 		}
 
-		public DataFrame(IEnumerable<Series> series, string index=null)
+        public DataFrame(IDictionary<string, Series> series)
+            :this()
+        {
+            foreach (var x in series)
+            {
+                this.Columns.Add(x.Value, x.Key);
+            }
+            //this.Index = index.Get(i => this.Columns[i]);
+        }
+
+        public DataFrame(IEnumerable<Series> series, string index=null)
 			: this()
 		{
 			foreach (var x in series) {
-				this.Columns.Add (x);
+				this.Columns.Add (x, x.Name);
 			}
             this.Index = index.Get(i => this.Columns[i]);
 		}
 
-        public DataFrame(long count, Type[] types, string[] names=null, string index=null) 
+        public DataFrame(long count, Type[] types = null, string[] names=null, string index=null) 
             : this()
         {
-            Func<int, string> getname = i => names != null && i < names.Length ? names[i] : "{0}".Args(i);
-
-            for(int i=0;i<types.Length;i++)
+            Rows.Count = (int)count;
+            if (types != null)
             {
-                Type t = types[i];
-                if (t == typeof(double))
-                    Columns.Add(new Series<double>(count),getname(i));
-                else if (t == typeof(long))
-                    Columns.Add(new Series<long>(count), getname(i));
-                else if (t == typeof(DateTime))
-                    Columns.Add(new DateTimeSeries(count), getname(i));
-                else if (t == typeof(int))
-                    Columns.Add(new Series<int>(count), getname(i));
-                else
-                    throw new ArgumentException("Type {0} not supported".Args(t));
+                for (int i = 0; i < types.Length; i++)
+                    Columns.Add(Series.FromType(types[i], count),names!=null && i<names.Length ? names[i] : $"{i}");
             }
         }
 
@@ -397,6 +402,40 @@ namespace NArctic
         public Series this[string column]
         {
             get { return Columns[column]; }
+        }
+
+        public Series this[string column, Type t]
+        {
+            get {
+                if (Columns.Contains(column))
+                    return Columns[column];
+                var s = Series.FromType(t, Rows.Count);
+                this.Columns.Add(s, column);
+                return s;
+            }
+        }
+
+        public object this[string column, int row]
+        {
+            get {
+                if (!column.Contains(column))
+                    return null;
+
+                return this[column].At(row);
+            }
+            set {
+                Series s = this[column, value.GetType()];
+                s.Set(row, value);
+            }
+        }
+
+        public BaseSeries<T> GetOrAdd<T>(string column)
+        {
+            if (Columns.Contains(column))
+                return Columns[column].As<T>();
+            var s = new Series<T>(this.Rows.Count);
+            this.Columns.Add(s, column);
+            return s;
         }
 
         public DataFrame Clone() 
@@ -474,6 +513,7 @@ namespace NArctic
 		{
 			return this.Columns.Add (series, name);
 		}
+
 
 		public override string ToString ()
 		{

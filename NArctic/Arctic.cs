@@ -152,7 +152,7 @@ namespace NArctic
             return this.AppendAsync(symbol, df, chunksize).Result;
         }
 
-		public async Task<BsonDocument> AppendAsync(string symbol, DataFrame df, int chunksize=0)
+		public async Task<BsonDocument> AppendAsync(string symbol, DataFrame df, int chunksize=0, bool skipAlreadyWrittenDates = true)
 		{
             if (df.Index == null)
                 throw new ArgumentException("Please specify DataFrame.Index column before saving");
@@ -202,19 +202,45 @@ namespace NArctic
 
             var seg_ind_buf = new ByteBuffer();
 			int segment_offset = 0;
+            bool is_date_time_index = DType.DateTime64.ToString().Equals(df.Index.DType.ToString());
 
-			//version ["base_sha"] = version ["sha"];
-			if (previous_version != null) {
+            //version ["base_sha"] = version ["sha"];
+            if (previous_version != null) {
 				var seg_ind = previous_version ["segment_index"].AsByteArray;
                 seg_ind_buf.AppendDecompress(seg_ind);
 				segment_offset = previous_version ["up_to"].AsInt32;
-			}
+                if (is_date_time_index && skipAlreadyWrittenDates)
+                {
+                    long date = seg_ind_buf.Read<long>(seg_ind_buf.Length - 16);
+                    DateTime dt = DateTime64.ToDateTime(date);
+                    var range = df.Index.AsDateTime().FindRange(x => x > dt);
+                    if (range.Last <= range.First)
+                    {
+                        Log.Information($"Skipped DataFrame.Append because date {dt} already written for {symbol}");
+                        return null; // Hey all was skipped
+                    }else if (range.First != 0)
+                    {
+                        Log.Information($"Skipped DataFrame.Append initial {range.First} elements date {dt} already written for {symbol}");
+                    }
+                    df = df[range];
+                }    
+            }
 
-            //seg_ind_buf.Append();
+
+            var up_to = segment_offset + df.Rows.Count;
+
+            // add index that is last datetime + 0-based int64 index of last appended record like (segment_count-1)
+            if (is_date_time_index)
+            {
+                var date = df.Index.AsDateTime().Source[-1];
+                seg_ind_buf.Append<long>(date);
+                seg_ind_buf.Append<long>(up_to - 1);
+            }
+
             var seg_ind_buf2 = new ByteBuffer();
             seg_ind_buf2.AppendCompress(seg_ind_buf.GetBytes());
 			version ["segment_index"] = seg_ind_buf2.GetBytes();
-			version ["up_to"] = segment_offset + df.Rows.Count;
+            version["up_to"] = up_to;
 			var buf = new ByteBuffer();
 			var bin = df.ToBuffer ();
 			buf.AppendCompress(bin);

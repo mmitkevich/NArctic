@@ -180,22 +180,77 @@ namespace NArctic.Tests
             }
         }
 
-		public static void Main (string[] args)
+        public static void TestArcticDateTimeIndex(string lib = "net.securities", string host = "localhost", bool purge = true, bool del = true, string symbol = "S1")
+        {
+            var driver = new MongoClient("mongodb://" + host);
+            var arctic = new Arctic(driver, lib, purge: purge);
+
+            if (del)
+            {
+                var delcnt = arctic.DeleteAsync(symbol).Result;
+                Console.WriteLine("Deleted {0} versi\tons for {1}".Args(delcnt, symbol));
+            }
+
+            var df = new DataFrame(new Series[] {
+                new DateTimeSeries(new[] { new DateTime(2014, 1, 1), new DateTime(2014, 2, 1) }, name:"date"),
+                new Series<long>(new long[] { 1, 2 }, name:"val")
+            }, index: "date");
+
+            var df2 = new DataFrame(new Series[] {
+                new DateTimeSeries(new[] { new DateTime(2014, 3, 1), new DateTime(2014, 4, 1) }, name:"date"),
+                new Series<long>(new long[] { 3, 4 }, name:"val")
+            }, index: "date");
+
+            var df4 = new DataFrame(new Series[] {
+                new DateTimeSeries(new[] { new DateTime(2014, 3, 1), new DateTime(2014, 4, 1), new DateTime(2014, 5, 1) }, name:"date"),
+                new Series<long>(new long[] { 3, 4, 5 }, name:"val")
+            }, index: "date");
+
+            var df3 = new DataFrame(new Series[] {
+                new DateTimeSeries(new[] { new DateTime(2014, 5, 1), new DateTime(2014, 6, 1) }, name:"date"),
+                new Series<long>(new long[] { 5, 6 }, name:"val")
+            }, index: "date");
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            var version = arctic.AppendAsync(symbol, df, CHUNKSIZE).Result;
+            var version2 = arctic.AppendAsync (symbol, df2, CHUNKSIZE).Result;
+            var version3 = arctic.AppendAsync(symbol, df2, CHUNKSIZE).Result;
+            var version4 = arctic.AppendAsync(symbol, df4, CHUNKSIZE).Result;
+
+            sw.Stop();
+            long rows = df.Rows.Count;// + df2.Rows.Count;
+            Console.WriteLine("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args(rows, sw.Elapsed.TotalSeconds, rows / sw.Elapsed.TotalSeconds, version));
+        }
+
+        public static void TestNMem()
+        {
+            ByteBuffer b = new ByteBuffer();
+            b.Append<long>(50);
+            var v = b.Read<long>(0);
+            if ( v != 50)
+                throw new InvalidOperationException();
+        }
+        public static void Main (string[] args)
 		{
 			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
 				.MinimumLevel.Debug()
 				.WriteTo.Console()
 				.CreateLogger();
 
-            TestIndex();
+            /* TestNMem();
+             TestIndex();
 
-            TestDTypes ();
+             TestDTypes ();
 
-            TestCircularDataframe();
+             TestCircularDataframe();
 
-            TestWriteArctic("net.securities",purge:true,del:true);
-            TestReadArctic("net.securities");
-            TestReflection();
+             TestWriteArctic("net.securities",purge:true,del:true);
+                         TestReadArctic("net.securities");
+             TestReflection();
+
+             */
+            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
 
             Console.WriteLine ("DONE");
 		}

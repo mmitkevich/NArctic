@@ -82,6 +82,12 @@ namespace Utilities
             var s = UnsafeAPI.SizeOf<T>();
             EnsureCapacity(Length + s);
             UnsafeAPI.Write<T>(this.data, Length, value);
+            Length += s;
+        }
+
+        public T Read<T>(int offset)
+        {
+            return UnsafeAPI.Read<T>(this.data, offset);
         }
 
 		public ByteBuffer AppendDecompress(byte[] encoded)

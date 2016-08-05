@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using NMem;
 
 namespace NArctic
 {
@@ -31,34 +33,30 @@ namespace NArctic
                 dest[i] = src[i];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>()
         {
-            int s = Marshal.SizeOf(typeof(T));
-            return s;
+            return NMem.NMem.SizeOf<T>();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(byte[] data, int offset)
         {
             T result = default(T);
-            GCHandle ghsrc = GCHandle.Alloc(data, GCHandleType.Pinned);
-            IntPtr ptr = ghsrc.AddrOfPinnedObject();
-            GCHandle ghdst = GCHandle.Alloc(result, GCHandleType.Pinned);
-            int s = SizeOf<T>();
-            Copy(ghdst.AddrOfPinnedObject(), ptr + offset, (ulong)s);
-            ghsrc.Free();
-            ghdst.Free();
+            GCHandle h = GCHandle.Alloc(data, GCHandleType.Pinned);
+            IntPtr ptr = h.AddrOfPinnedObject();
+            NMem.NMem.Write(ptr+offset, ref result);
+            h.Free();
             return result;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T>(byte[] data, int offset, T value)
         {
-            GCHandle ghsrc = GCHandle.Alloc(data, GCHandleType.Pinned);
-            IntPtr ptr = ghsrc.AddrOfPinnedObject();
-            GCHandle ghdst = GCHandle.Alloc(value, GCHandleType.Pinned);
-            int s = SizeOf<T>();
-            Copy(ghdst.AddrOfPinnedObject(), ptr + offset, (ulong)s);
-            ghsrc.Free();
-            ghdst.Free();
+            GCHandle h = GCHandle.Alloc(data, GCHandleType.Pinned);
+            IntPtr ptr = h.AddrOfPinnedObject();
+            NMem.NMem.Read(ptr+offset, ref value);
+            h.Free();
         }
 
     }

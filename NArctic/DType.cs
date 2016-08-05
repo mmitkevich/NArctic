@@ -146,14 +146,14 @@ namespace NArctic
 			return offset;
 		}
 
-		public void ToBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
+		public void ToBuffer<T>(byte[] buf, T[] data, int ofs, int iheight, int icol) {
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
 			int elsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
 			GCHandle ghsrc = GCHandle.Alloc (data, GCHandleType.Pinned);
 			GCHandle ghdst = GCHandle.Alloc (buf, GCHandleType.Pinned);
-			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), fieldOffset, bytesPerRow, ghsrc.AddrOfPinnedObject(), 0, elsize, iheight, elsize);
+			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), fieldOffset, bytesPerRow, ghsrc.AddrOfPinnedObject()+ofs*UnsafeAPI.SizeOf<T>(), 0, elsize, iheight, elsize);
 			ghsrc.Free ();
 			ghdst.Free ();
 		}

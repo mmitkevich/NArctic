@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using MongoDB.Driver;
 using NumCIL.Boolean;
+using MongoDB.Bson;
 
 namespace NArctic
 {
@@ -76,6 +77,7 @@ namespace NArctic
 		public abstract int Count{ get; }
 
 		public abstract object At (int index);
+        public abstract void Set(int index, object value);
 
 		public abstract Series this [Range range] {
 			get;
@@ -174,7 +176,22 @@ namespace NArctic
 			}
 		}
 
-	}
+        public static Series FromType(Type t, long count, DType dtype=null)
+        {
+            if (t == typeof(double))
+                return new Series<double>(count, dtype);
+            else if (t == typeof(long))
+                return new Series<long>(count, dtype);
+            else if (t == typeof(DateTime))
+                return new DateTimeSeries(count, dtype);
+            else if (t == typeof(int))
+                return new Series<int>(count, dtype);
+            else
+                throw new ArgumentException("Type {0} not supported".Args(t));
+
+        }
+
+    }
 
 	public abstract class BaseSeries<T> : Series, IList<T> 
 	{
@@ -208,10 +225,23 @@ namespace NArctic
             }
         }
 
-        public virtual T[] AsArray()
+        public Range FindRange(Predicate<T> first)
         {
-            throw new NotSupportedException();
+            //T[] arr = AsArray();
+            //int ifirst = first != null ? Array.FindIndex(arr, 0, first) : 0;
+            //int ilast = last != null ? Array.FindIndex(arr, ifirst, last) : this.Count - 1;
+            int i = 0;
+            while (i < Count)
+            {
+                if (first(this[i]))
+                    return new NumCIL.Range(i, this.Count);
+                i++;
+            }
+            return new Range(-1,-1);
         }
+
+        public abstract T[] AsArray();
+
         public abstract BaseSeries<T> Copy();
 
         #region IList<T>
@@ -305,7 +335,12 @@ namespace NArctic
 			return getter (Source[index]);
 		}
 
-		public override Series Clone ()
+        public override void Set(int index, object value)
+        {
+            Source[index] = setter((T)value);
+        }
+
+        public override Series Clone ()
 		{
             return Copy();
 		}
@@ -342,7 +377,7 @@ namespace NArctic
 			}
 		}
 
-		public T[] AsArray () {
+		public override T[] AsArray () {
 			return Source.AsArray ().Select (getter).ToArray ();
 		}
 
@@ -370,6 +405,14 @@ namespace NArctic
         { 
         }
 
+        public DateTimeSeries(IEnumerable<DateTime> values, string name=null): this(
+            new Series<long>(
+                values.Select(DateTime64.ToDateTime64).ToArray(), name=name)
+            )
+        {
+            Name = name;
+        }
+
         //public DateTimeSeries(NdArray<long> array, DType dtype=null)
         //    : this(new Series<long>(array))
         //{
@@ -381,27 +424,31 @@ namespace NArctic
 
         }
 
+        public override BaseSeries<DateTime> Copy()
+        {
+            return new DateTimeSeries(Source.Copy(), DType.Clone());
+        }
+
         public override Series Clone()
         {
             return new DateTimeSeries(Source.Copy(), DType.Clone());
         }
+
         public override Series this[Range range]
         {
             get
             {
                 return new DateTimeSeries(Source[range].As<long>(), this.DType.Clone());
             }
-        }
+        }		
 
-        public static BaseSeries<DateTime> Range(int count, DateTime start, DateTime end)
+        public static DateTimeSeries Range(int count, DateTime start, DateTime end)
         {
             var delta = (end - start).ToDateTime64() / count;
             var r = new NdArray<long>(new Shape(count));
             for (int i = 0; i < r.Count(); i++)
                 r.Value[i] = start.ToDateTime64() + delta * i;
-            return new Series<DateTime, long>(new Series<long>(r),
-                getter: DateTime64.ToDateTime,
-                setter: DateTime64.ToDateTime64);
+            return new DateTimeSeries(new Series<long>(r));
         }
 
     }
@@ -426,12 +473,14 @@ namespace NArctic
 			Values = values;
 		}
 
-		public Series(T[] data, DType dtype=null) : this(new NdArray<T>(data), dtype)
+		public Series(T[] data, DType dtype=null, string name=null) : this(new NdArray<T>(data), dtype)
 		{
+            Name = name;
 		}
 
-        public Series(IEnumerable<T> data) : this(new NdArray<T>(data.ToArray()))
+        public Series(IEnumerable<T> data, string name=null) : this(new NdArray<T>(data.ToArray()))
         {
+            Name = name;
         }
 
 		public static implicit operator Series<T>(NdArray<T> values) {
@@ -517,7 +566,7 @@ namespace NArctic
 			}
 		}
 
-		public T[] AsArray () {
+		public override T[] AsArray () {
 			return Values.AsArray ();
 		}
 
@@ -525,7 +574,9 @@ namespace NArctic
 		public override void ToBuffer(byte[] buf, DType buftype, int iheight, int icol)
 		{
 			T[] data = this.Values.AsArray();
-			buftype.ToBuffer (buf, data, iheight, icol);
+            // hack here
+            int ofs = (int)this.Values.Shape.Offset;
+			buftype.ToBuffer (buf, data, ofs, iheight, icol);
 		}
 
 		public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol )
@@ -543,6 +594,11 @@ namespace NArctic
 		public override object At(int index) {
 			return this [index];
 		}
+
+        public override void Set(int index, object value)
+        {
+            this[index] = (T)value;
+        }
 
 
 	}
