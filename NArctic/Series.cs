@@ -74,7 +74,7 @@ namespace NArctic
 			set { DType.Name = value; }
 		}
 
-		public abstract int Count{ get; }
+		public abstract int Count{ get; set; }
 
 		public abstract object At (int index);
         public abstract void Set(int index, object value);
@@ -328,6 +328,9 @@ namespace NArctic
 			get{ 
 				return Source.Count;
 			}
+            set {
+                Source.Count = value;
+            }
 		}
 
 		public override object At (int index)
@@ -497,7 +500,14 @@ namespace NArctic
 
 		public override int Count
 		{
-			get{ return (int)Values.Shape.Dimensions [0].Length;}
+			get { return (int)Values.Shape.Dimensions [0].Length; }
+            set {
+                // clone underlying ndarray
+                var resized = new NdArray<T>(new Shape(value));
+                for (int i = 0; i < Math.Min(value, Count); i++)
+                    resized.Value[i] = Values.Value[i];
+                Values = resized;
+            }
 		}
 
         public override int IndexOf(T item)

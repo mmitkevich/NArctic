@@ -252,10 +252,7 @@ namespace NArctic
 
         public int Count
         {
-            get
-            {
-                return keys.Count;
-            }
+            get { return DataFrame.Count; }
         }
 
         public bool IsReadOnly
@@ -284,19 +281,19 @@ namespace NArctic
 
         public void Add(KeyValuePair<K, V> item)
         {
-            this.keys.Add(item.Key);
-            this.values.Add(item.Value);
+            Add(item.Key, item.Value);
         }
 
         public void Add(K key, V value)
         {
+            this.DataFrame.Count++;
             this.keys.Add(key);
             this.values.Add(value);
         }
 
         public void Clear()
         {
-            throw new NotImplementedException();
+            this.DataFrame.Count = 0;
         }
 
         public bool Contains(KeyValuePair<K, V> item)
@@ -306,7 +303,8 @@ namespace NArctic
 
         public bool ContainsKey(K key)
         {
-            return keys.IndexOf(key) != -1;
+            var index = keys.IndexOf(key);
+            return index >= 0 && index < Count;
         }
 
         public void CopyTo(KeyValuePair<K, V>[] array, int arrayIndex)
@@ -321,7 +319,6 @@ namespace NArctic
                 yield return new KeyValuePair<K,V>(keys[i], values[i]);
             }
         }
-
         public bool Remove(KeyValuePair<K, V> item)
         {
             throw new NotImplementedException();
@@ -348,6 +345,7 @@ namespace NArctic
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
         public Series Index;
+        private int usedCount;
 
         public DType DType {
 			get { return Columns.DType; } 
@@ -389,6 +387,28 @@ namespace NArctic
             }
         }
 
+        public int Count {
+            get {
+                return this.usedCount;
+            }
+            set {
+                this.usedCount = value;
+                if (this.usedCount > Rows.Count)
+                {
+                    int maxCount = 0;
+                    // need grow
+                    foreach(var c in Columns)
+                    {
+                        if (c.Count < 2 * usedCount)
+                            c.Count = 2 * usedCount;
+                        if (c.Count > maxCount)
+                            maxCount = c.Count;
+                    }
+                    Rows.Count = Math.Max(usedCount, maxCount);
+                }
+            }
+        }  
+
         public TypedFrame<T> As<T>() where T:new()
         {
             return new TypedFrame<T>(this);
@@ -420,10 +440,12 @@ namespace NArctic
             get {
                 if (!column.Contains(column))
                     return null;
-
                 return this[column].At(row);
             }
             set {
+                if (row+1 > this.Count)
+                    this.Count = row + 1;
+
                 Series s = this[column, value.GetType()];
                 s.Set(row, value);
             }
@@ -513,7 +535,6 @@ namespace NArctic
 		{
 			return this.Columns.Add (series, name);
 		}
-
 
 		public override string ToString ()
 		{

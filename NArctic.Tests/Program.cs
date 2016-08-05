@@ -223,6 +223,22 @@ namespace NArctic.Tests
             Console.WriteLine("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args(rows, sw.Elapsed.TotalSeconds, rows / sw.Elapsed.TotalSeconds, version));
         }
 
+        public static void TestGrowingCase()
+        {
+            var df = new DataFrame();
+            df.Count = 3;   // "use" space
+            Console.WriteLine($"Initial df {df}");
+            for (var i = 0; i < 10; i++)
+            {
+                df["a", i] = i;
+                df["b", i+1] = -i;
+                Console.WriteLine($"Count={df.Count}, Rows.Count={df.Rows.Count}");
+            }
+            Console.WriteLine($"Final df {df}");
+            df.Count = 0;
+            Console.WriteLine($"Final df after free {df}");
+        }
+
         public static void TestNMem()
         {
             ByteBuffer b = new ByteBuffer();
@@ -249,9 +265,10 @@ namespace NArctic.Tests
                          TestReadArctic("net.securities");
              TestReflection();
 
-             */
-            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
 
+            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
+             */
+            TestGrowingCase();
             Console.WriteLine ("DONE");
 		}
 	}

@@ -17,7 +17,26 @@ using System.Security.Cryptography;
 
 namespace NArctic
 {
-	public class Arctic
+    public class SymbolVersion
+    {
+        public BsonDocument Bson;
+        public List<Tuple<DateTime, long>> Index;
+        public DateTime MinDate { get { return Index[0].Item1; } }
+        public DateTime MaxDate { get { return Index[Index.Count-1].Item1; } }
+
+        public SymbolVersion(BsonDocument bson)
+        {
+            Bson = bson;
+            BuildIndex();
+        }
+
+        private void BuildIndex()
+        {
+
+        }
+    }
+
+    public class Arctic
 	{
         public MongoClient Mongo { get; set; }
         public IMongoDatabase Db
@@ -84,10 +103,11 @@ namespace NArctic
             {
                 var seg_ind_buf = new ByteBuffer();
                 seg_ind_buf.AppendDecompress(version["segment_index"].AsByteArray);
+                // TODO:
             }
             return filter;
         }
-
+        
         public async Task<DataFrame> ReadAsync(string symbol, DateRange daterange=null, BsonDocument version=null)
 		{
 			version = version ?? await ReadVersionAsync(symbol);
