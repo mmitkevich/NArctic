@@ -409,6 +409,12 @@ namespace NArctic
             }
         }  
 
+        public DataFrame UsedRange {
+            get {
+                return this[0, Count];
+            }
+        }
+
         public TypedFrame<T> As<T>() where T:new()
         {
             return new TypedFrame<T>(this);
@@ -419,9 +425,19 @@ namespace NArctic
             return new Ring(() => this.Rows.Count);
         }
 
+        public BaseSeries<T> Col<T>(string col)
+        {
+            return this[col,typeof(T)].As<T>();
+        }
+
         public Series this[string column]
         {
             get { return Columns[column]; }
+        }
+
+        public DataFrame this[int start, int stop]
+        {
+            get { return this[new Range(start, stop)]; }
         }
 
         public Series this[string column, Type t]

@@ -218,6 +218,11 @@ namespace NArctic.Tests
             var version3 = arctic.AppendAsync(symbol, df2, CHUNKSIZE).Result;
             var version4 = arctic.AppendAsync(symbol, df4, CHUNKSIZE).Result;
 
+            var read1 = arctic.Read(symbol, new DateRange(new DateTime(2014, 3, 1)));
+            Console.WriteLine(read1);
+
+            var read2 = arctic.Read(symbol, new DateRange(new DateTime(2014, 1, 1), new DateTime(2014, 2, 1)));
+            Console.WriteLine(read2);
             sw.Stop();
             long rows = df.Rows.Count;// + df2.Rows.Count;
             Console.WriteLine("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args(rows, sw.Elapsed.TotalSeconds, rows / sw.Elapsed.TotalSeconds, version));
@@ -264,11 +269,11 @@ namespace NArctic.Tests
              TestWriteArctic("net.securities",purge:true,del:true);
                          TestReadArctic("net.securities");
              TestReflection();
+             
+             TestGrowingCase();
 
-
-            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
              */
-            TestGrowingCase();
+            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
             Console.WriteLine ("DONE");
 		}
 	}

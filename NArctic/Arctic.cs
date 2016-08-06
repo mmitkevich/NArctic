@@ -17,25 +17,6 @@ using System.Security.Cryptography;
 
 namespace NArctic
 {
-    public class SymbolVersion
-    {
-        public BsonDocument Bson;
-        public List<Tuple<DateTime, long>> Index;
-        public DateTime MinDate { get { return Index[0].Item1; } }
-        public DateTime MaxDate { get { return Index[Index.Count-1].Item1; } }
-
-        public SymbolVersion(BsonDocument bson)
-        {
-            Bson = bson;
-            BuildIndex();
-        }
-
-        private void BuildIndex()
-        {
-
-        }
-    }
-
     public class Arctic
 	{
         public MongoClient Mongo { get; set; }
@@ -69,6 +50,21 @@ namespace NArctic
             this.Name = db;
 		}
 
+        public List<Tuple<DateTime,long>> GetSegmentsIndex(BsonDocument version)
+        {
+            var result = new List<Tuple<DateTime, long>>();
+
+            var seg_ind_buf = new ByteBuffer();
+            seg_ind_buf.AppendDecompress(version["segment_index"].AsByteArray);
+            for(int ofs = 0; ofs < seg_ind_buf.Length; ofs += 16)
+            {
+                var t = seg_ind_buf.Read<long>(ofs);
+                var rec = new Tuple<DateTime, long>(DateTime64.ToDateTime(t), seg_ind_buf.Read<long>(ofs + 8));
+                result.Add(rec);
+            }
+            return result;
+        }
+
         public override string ToString()
         {
             return "Arctic('{0}')".Args(this.Name);
@@ -91,35 +87,48 @@ namespace NArctic
             return this.ReadAsync(symbol, daterange, version).Result;
         }
 
-        public FilterDefinition<BsonDocument> GetSegmentsFilter(string symbol, DateRange range, BsonDocument version)
-        {
+        
+        public async Task<DataFrame> ReadAsync(string symbol, DateRange range=null, BsonDocument version=null)
+		{
+			version = version ?? await ReadVersionAsync(symbol);
+
+            if (version == null)
+				return null;
+            Log.Debug("version: {0}".Args(version));
+
+            var buf = new ByteBuffer ();
+			
+            var index = GetSegmentsIndex(version);
             var id = version["_id"];
             var parent = version.GetValue("base_version_id", null);
             if (parent == null)
                 parent = id;
 
             var filter = BF.Eq("symbol", symbol) & BF.Eq("parent", parent);
-            if (range!=null)
+            int start_segment = 0;
+            int end_segment = -1;
+
+            if (range != null)
             {
-                var seg_ind_buf = new ByteBuffer();
-                seg_ind_buf.AppendDecompress(version["segment_index"].AsByteArray);
-                // TODO:
+                foreach (var t in index)
+                {
+                    if (range.StartDate != default(DateTime) && range.StartDate > t.Item1)  // t.Item1 is inclusive end date of segment
+                        start_segment = (int)t.Item2 + 1; // should start from next segment
+                    if (range.StopDate != default(DateTime) && range.StopDate <= t.Item1 && end_segment==-1)
+                        end_segment = (int)t.Item2;      // should stop at this segment
+                }
+                if (start_segment != 0)
+                    filter = filter & BF.Gte("segment", start_segment);
+                if (end_segment != -1)
+                    filter = filter & BF.Lte("segment", end_segment);
             }
-            return filter;
-        }
-        
-        public async Task<DataFrame> ReadAsync(string symbol, DateRange daterange=null, BsonDocument version=null)
-		{
-			version = version ?? await ReadVersionAsync(symbol);
-			if (version == null)
-				return null;
-			
-			var buf = new ByteBuffer ();
-			Log.Debug ("version: {0}".Args (version));
-            var filter = GetSegmentsFilter(symbol, daterange, version);
-			var segments = await this._segments.FindAsync (filter);
+            if (end_segment == -1)
+                end_segment = version["up_to"].AsInt32-1;
+
+            var segments = await this._segments.FindAsync (filter);
 			int segcount = 0;
-			while (await segments.MoveNextAsync ()) {
+
+            while (await segments.MoveNextAsync ()) {
 				foreach (var segment in segments.Current) {
 #if DEBUG
 					//Log.Debug ("read segment: {0}".Args(segment));
@@ -135,7 +144,7 @@ namespace NArctic
 			if (segcount == 0)
 				throw new InvalidOperationException ("No segments found for {0}".Args (version));
 			
-			var nrows = version ["up_to"].AsInt32;
+			var nrows = end_segment-start_segment+1;
 			var dtype = version ["dtype"].AsString;
 			var buftype = new DType (dtype);
 			var bytes = buf.GetBytes ();
@@ -146,7 +155,8 @@ namespace NArctic
             if (index_name != null) {
                 df.Index = df.Columns[index_name.AsString];
             }
-            return df;			
+            // TODO: Filter first/last segment
+            return df;
 		}
 
 		internal static FilterDefinitionBuilder<BsonDocument> BF {get{ return Builders<BsonDocument>.Filter;} }
