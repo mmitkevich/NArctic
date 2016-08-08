@@ -228,6 +228,29 @@ namespace NArctic.Tests
             Console.WriteLine("write {0} took {1}s = {2}/sec -> ver:\n {3}".Args(rows, sw.Elapsed.TotalSeconds, rows / sw.Elapsed.TotalSeconds, version));
         }
 
+        public static void TestMetadata(string lib = "net.securities", string host = "localhost", bool purge = true, bool del = true, string symbol = "S1")
+        {
+            var driver = new MongoClient("mongodb://" + host);
+            var arctic = new Arctic(driver, lib, purge: purge);
+
+            if (del)
+            {
+                var delcnt = arctic.DeleteAsync(symbol).Result;
+                Console.WriteLine("Deleted {0} versi\tons for {1}".Args(delcnt, symbol));
+            }
+            var df = new DataFrame();
+            df.Count = 2;
+            df.Col<DateTime>("date")[0] = new DateTime(2015,1,1);
+            df.Col<DateTime>("date")[1] = new DateTime(2015,2,1);
+            df.Col<long>("value")[0] = 15;
+            df.Metadata["sector"] = "internet";
+            df.Index = df["date"];
+            arctic.Append("AAPL", df);
+
+            var df1 = arctic.Read("AAPL");
+            Console.WriteLine($"AAPL metadata {df1.Metadata["sector"]}");
+        }
+
         public static void TestGrowingCase()
         {
             var df = new DataFrame();
@@ -273,7 +296,8 @@ namespace NArctic.Tests
              TestGrowingCase();
 
              */
-            TestArcticDateTimeIndex("net.securities", purge: true, del: true);
+            //TestArcticDateTimeIndex("net.securities", purge: true, del: true);
+            TestMetadata();
             Console.WriteLine ("DONE");
 		}
 	}

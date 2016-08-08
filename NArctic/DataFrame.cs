@@ -345,6 +345,8 @@ namespace NArctic
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
         public Series Index;
+        public BsonDocument Metadata { get; set; } = new BsonDocument();
+
         private int usedCount;
 
         public DType DType {
@@ -409,12 +411,6 @@ namespace NArctic
             }
         }  
 
-        public DataFrame UsedRange {
-            get {
-                return this[0, Count];
-            }
-        }
-
         public TypedFrame<T> As<T>() where T:new()
         {
             return new TypedFrame<T>(this);
@@ -435,9 +431,9 @@ namespace NArctic
             get { return Columns[column]; }
         }
 
-        public DataFrame this[int start, int stop]
+        public DataFrame Range(int start=0, int stop=-1)
         {
-            get { return this[new Range(start, stop)]; }
+            return this[new Range(start, stop<0?stop+Count+1:stop)];
         }
 
         public Series this[string column, Type t]
@@ -479,6 +475,7 @@ namespace NArctic
         public DataFrame Clone() 
 		{
 			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Get(i=>i.Name));
+            df.Metadata = this.Metadata;
 
 			return df;
 		}
@@ -491,6 +488,7 @@ namespace NArctic
 		public DataFrame this [Range range] {
 			get {
                 var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Get(i=>i.Name));
+                rtn.Metadata = this.Metadata;
                 return rtn;
 
             }
@@ -498,24 +496,29 @@ namespace NArctic
 
         public DataFrame Head(int count)
         {
-            return this[Range.R(0, count)];
+            return this[NumCIL.Range.R(0, count)];
         }
 
         public DataFrame Tail(int count)
         {
-            return this[Range.R(this.Rows.Count-count-1, count)];
+            return this[NumCIL.Range.R(this.Rows.Count-count-1, count)];
         }
 
         public DataFrame Loc<T>(T key, int indexColumn=0)
         {
             var s = this[indexColumn].As<T>();
             int row = s.IndexOf(key);
-            return this[Range.R(row)];
+            return this[NumCIL.Range.R(row)];
         }
 
         public IDictionary<K, V> AsMap<K,V>(int indexColumn, int valuesColumn)
         {
             return new DataMap<K, V>(this, this[indexColumn].As<K>(), this[valuesColumn].As<V>());
+        }
+
+        public IDictionary<K, V> AsMap<K,V>(string valuesColumn)
+        {
+            return new DataMap<K, V>(this, this.Index.As<K>(), this[valuesColumn].As<V>());
         }
 
 		public static DataFrame FromBuffer(byte[] buf, DType buftype, int iheight)

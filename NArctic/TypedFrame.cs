@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NArctic;
 using Vexe.Runtime.Extensions;
 using Utilities;
+using System.Collections;
 
 namespace NArctic
 {
@@ -44,7 +45,7 @@ namespace NArctic
         }
     }
 
-    public class TypedFrame<T> where T :new()
+    public class TypedFrame<T>:IList<T> where T :new()
     {
         public static List<PropertyInfo> GetSettableProps(Type t)
         {
@@ -87,12 +88,11 @@ namespace NArctic
         public string Index;
 
 
-        public TypedFrame(long count, string index=null, string[] keys=null)
+        public TypedFrame(long count=0, string index=null, string[] keys=null)
         {
             Init(typeof(T),keys);
             Index = index;
-            if(count>0)
-                DataFrame = CreateDataFrame(count);
+            DataFrame = CreateDataFrame(count);
         }
 
         public TypedFrame(DataFrame df, string[] keys = null)
@@ -208,7 +208,22 @@ namespace NArctic
         
         public int Count
         {
-            get { return DataFrame.Rows.Count; }
+            get { return DataFrame.Count; }
+            set { DataFrame.Count = value; }
+        }
+
+        public bool IsReadOnly
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public void Add(T t)
+        {
+            this.Count++;
+            this[Count - 1] = t;
         }
 
         public RingFrame<T> ToRing()
@@ -216,5 +231,50 @@ namespace NArctic
             return new RingFrame<T>(this);
         }
 
+        public int IndexOf(T item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Insert(int index, T item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void RemoveAt(int index)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Clear()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(T item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Remove(T item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            for (int i = 0; i < this.Count; i++)
+                yield return this[i];
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<T>)this).GetEnumerator();
+        }
     }
 }

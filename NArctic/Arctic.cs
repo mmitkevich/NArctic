@@ -155,6 +155,9 @@ namespace NArctic
             if (index_name != null) {
                 df.Index = df.Columns[index_name.AsString];
             }
+            var metadata = version.GetValue("metadata", new BsonDocument()).AsBsonDocument;
+            df.Metadata = metadata;
+            df.Count = df.Rows.Count;
             // TODO: Filter first/last segment
             return df;
 		}
@@ -217,6 +220,8 @@ namespace NArctic
 			}
 
             var sdt = df.DType.ToString();
+
+            version["metadata"] = df.Metadata;
 
             version ["dtype"] = sdt;
             Log.Debug("saved dtype {0}", sdt);
@@ -343,6 +348,17 @@ namespace NArctic
 			version ["symbol"] = symbol;
 			return version;
 		}
+
+        public async Task<List<BsonDocument>> ListSymbolsAsync(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter = null)
+        {
+            var cur = filter != null ? _versions.Find(filter) : _versions.Find(x=>true);
+            return await cur.ToListAsync();
+        }
+
+        public List<BsonDocument> ListSymbols(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter = null)
+        {
+            return ListSymbolsAsync(filter).Result;
+        }        
 	}
 }
 
