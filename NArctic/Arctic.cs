@@ -342,7 +342,7 @@ namespace NArctic
 											ReturnDocument = ReturnDocument.After 
 										}
 			                       );
-			version ["version"] = version_num.Get(v=>v["version"], 1);
+			version ["version"] = version_num.Unwrap(v=>v["version"], 1);
 			if(version.GetValue("_id",null)==null)
 				version ["_id"] = new BsonObjectId (ObjectId.GenerateNewId ());
 			version ["symbol"] = symbol;

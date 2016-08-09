@@ -154,7 +154,7 @@ namespace Utilities
 			return val;
 		}
 
-        public static TValue Get<T, TValue>(this T nullable, Func<T,TValue> getter, TValue def=default(TValue)) where T : class
+        public static TValue Unwrap<T, TValue>(this T nullable, Func<T,TValue> getter, TValue def=default(TValue)) where T : class
         {
             return nullable == null ? def : getter(nullable);
         }

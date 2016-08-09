@@ -375,7 +375,7 @@ namespace NArctic
 			foreach (var x in series) {
 				this.Columns.Add (x, x.Name);
 			}
-            this.Index = index.Get(i => this.Columns[i]);
+            this.Index = index.Unwrap(i => this.Columns[i]);
 		}
 
         public DataFrame(long count, Type[] types = null, string[] names=null, string index=null) 
@@ -474,7 +474,7 @@ namespace NArctic
 
         public DataFrame Clone() 
 		{
-			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Get(i=>i.Name));
+			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Unwrap(i=>i.Name));
             df.Metadata = this.Metadata;
 
 			return df;
@@ -487,7 +487,7 @@ namespace NArctic
 
 		public DataFrame this [Range range] {
 			get {
-                var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Get(i=>i.Name));
+                var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Unwrap(i=>i.Name));
                 rtn.Metadata = this.Metadata;
                 return rtn;
 
