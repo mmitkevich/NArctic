@@ -57,7 +57,7 @@ namespace NArctic.Tests
             Console.WriteLine("RandomWalk generating {0}".Args(count));
 			var df = new DataFrame { 
 				DateTimeSeries.Range(count, start, stop),
-				Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-4).CumSum().Exp()),
+				Generate.Series.Random(count, new BoxMullerNormal()).Apply(v => (v*1e-4).CumSum().Exp()),
 			};
             df.Index = df[0];
 			Console.WriteLine (df);
@@ -279,7 +279,7 @@ namespace NArctic.Tests
 		{
 			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
 				.MinimumLevel.Debug()
-				.WriteTo.Console()
+				//.WriteTo.Console()
 				.CreateLogger();
 
             /* TestNMem();

@@ -128,11 +128,6 @@ namespace NArctic
 				yield return this.At (i);
 		}
 
-		public static Series<double> Random(int count, Randoms.IRandomGenerator gen = null)
-		{
-			return NArctic.Generate.Random (count, gen).ToSeries();
-		}
-
 		public static implicit operator Series(double[] data) 
 		{
 			return new Series<double>(data);
