@@ -156,7 +156,7 @@ namespace NumCIL
             //Matrix multiplication of two vectors is the dot product
             if (@out.Shape.Elements == 1)
             {
-                @out.Value[0] = UFunc_CombineAndAggregate_Inner_Flush<T, CADD, CMUL>(addop, mulop, in1, in2);
+                @out.Value[0] = UFunc_CombineAndAggregate_Inner_Flush<T, CADD, CMUL>(addop, mulop, in1, in2.Transposed);
                 return;
             }
 

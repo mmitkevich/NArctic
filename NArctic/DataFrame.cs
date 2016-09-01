@@ -119,7 +119,7 @@ namespace NArctic
             if (Head == Tail)
                 return -1;
             int tail = Tail;
-            Tail = (Tail + 1) % Count;
+            Tail = (Tail + 1) % Capacity();
             //Console.WriteLine("Tail={0}", Tail);
             return tail;
         }
@@ -132,11 +132,19 @@ namespace NArctic
 
         public IEnumerator<int> GetEnumerator()
         {
-            int head = Head;
-            while (head != Tail)
+            int i = Tail;
+            while (i != Head)
             {
-                yield return head;
-                head = (head + 1) % Capacity();
+                yield return i;
+                i = (i + 1) % Capacity();
+            }
+        }
+
+        public int this[int i]
+        {
+            get {
+                int j = (Tail + i) % Capacity();
+                return j;
             }
         }
 
