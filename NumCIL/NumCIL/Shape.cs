@@ -183,7 +183,7 @@ namespace NumCIL
         {
             if (dimensions == null)
                 throw new ArgumentNullException("dimensions");
-            if (dimensions.LongLength <= 0 || dimensions.Any(x => x.Length <= 0 || x.Stride < 0))
+            if (dimensions.LongLength <= 0 || dimensions.Any(x => x.Length < 0 || x.Stride < 0))
                 throw new ArgumentOutOfRangeException("dimensions");
             if (offset < 0)
                 throw new ArgumentOutOfRangeException("offset");

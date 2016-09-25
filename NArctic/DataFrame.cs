@@ -15,6 +15,7 @@ using MongoDB.Driver.Core.WireProtocol.Messages;
 using MongoDB.Bson;
 using Utilities;
 using NumCIL;
+using System.IO;
 
 namespace NArctic
 {
@@ -143,6 +144,8 @@ namespace NArctic
         public int this[int i]
         {
             get {
+                if (i < 0)
+                    i += Count;
                 int j = (Tail + i) % Capacity();
                 return j;
             }
@@ -348,12 +351,22 @@ namespace NArctic
         }
     }
 
+    public enum Location : int
+    {
+        GE=1,
+        GT=2,
+        EQ=0,
+        LE=-1,
+        LT=-2
+    }
+
 	public class DataFrame : IEnumerable<Series>
 	{
 		public SeriesList Columns = new SeriesList ();
 		public RowsList Rows;
         public Series Index;
         public BsonDocument Metadata { get; set; } = new BsonDocument();
+        public string Name { get; set; }
 
         private int usedCount;
 
@@ -439,9 +452,10 @@ namespace NArctic
             get { return Columns[column]; }
         }
 
+        // stop INCLUSIVE
         public DataFrame Range(int start=0, int stop=-1)
         {
-            return this[new Range(start, stop<0?stop+Count+1:stop)];
+            return this[new Range(start, stop/*<0?stop+Count:stop-1*/)];
         }
 
         public Series this[string column, Type t]
@@ -483,7 +497,7 @@ namespace NArctic
         public DataFrame Clone() 
 		{
 			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Unwrap(i=>i.Name));
-            df.Metadata = this.Metadata;
+            df.Metadata = this.Metadata.DeepClone().AsBsonDocument;
 
 			return df;
 		}
@@ -512,11 +526,28 @@ namespace NArctic
             return this[NumCIL.Range.R(this.Rows.Count-count-1, count)];
         }
 
-        public DataFrame Loc<T>(T key, int indexColumn=0)
+        // 0 = EQ key, -2: LT key, -1 LE key, 1 GE key, 2 GT key
+        public DataFrame Loc<T>(T key, Location match=Location.EQ)
         {
-            var s = this[indexColumn].As<T>();
-            int row = s.IndexOf(key);
-            return this[NumCIL.Range.R(row)];
+            if (this.Index == null)
+                throw new InvalidOperationException("Please specify index");
+            var s = this.Index.As<T>();
+            var range =  s.RangeOf(key, match);
+            return this[range];
+        }
+
+        public DataFrame Concat(DataFrame other)
+        {
+            DataFrame result = this.Clone();
+            foreach(var c in other)
+            {
+                if (this.Columns.Contains(c.Name))
+                    result[c.Name].Append(c);
+                else
+                    throw new InvalidOperationException("DataFrame.Concat only supports dataframes with equal columns sets");
+                result.Rows.Count = result[c.Name].Count;
+            }
+            return result;
         }
 
         public IDictionary<K, V> AsMap<K,V>(int indexColumn, int valuesColumn)
@@ -571,6 +602,36 @@ namespace NArctic
 			sb.Append (Rows.ToString ());
 			return sb.ToString ();
 		}
+
+        public void WriteCSV(TextWriter w)
+        {
+            for (int c = 0; c < Columns.Count; c++)
+            {
+                if (c != 0)
+                    w.Write(", ");
+                w.Write(Columns[c].Name);
+            }
+            w.Write("\n");
+            for (int i = 0; i < Rows.Count; i++)
+            {
+                for (int c = 0; c < Columns.Count; c++)
+                {
+                    if (c != 0)
+                        w.Write(", ");
+                    w.Write(this[c].At(i).ToString());
+                }
+                w.Write("\n");
+            }
+            w.Flush();
+        }
+
+        public void WriteCSV(string filename)
+        {
+            using(StreamWriter sw = new StreamWriter(filename))
+            {
+                WriteCSV(sw);
+            }
+        }
 
 		public IEnumerator<Series> GetEnumerator ()
 		{

@@ -79,7 +79,12 @@ namespace NArctic
 		public abstract object At (int index);
         public abstract void Set(int index, object value);
 
-		public abstract Series this [Range range] {
+        public virtual void Append(Series other)
+        {
+            throw new NotSupportedException();
+        }
+
+        public abstract Series this [Range range] {
 			get;
 		}
 
@@ -220,19 +225,19 @@ namespace NArctic
             }
         }
 
-        public Range FindRange(Predicate<T> first)
+        public Range RangeOf(T value, Location match=Location.GE)
         {
-            //T[] arr = AsArray();
-            //int ifirst = first != null ? Array.FindIndex(arr, 0, first) : 0;
-            //int ilast = last != null ? Array.FindIndex(arr, ifirst, last) : this.Count - 1;
-            int i = 0;
-            while (i < Count)
+            var i = this.IndexOf(value, match);
+            if (i < 0) return new NumCIL.Range();
+            switch (match)
             {
-                if (first(this[i]))
-                    return new NumCIL.Range(i, this.Count);
-                i++;
+                case Location.GE: return new NumCIL.Range(i, Count-1);
+                case Location.GT: return new NumCIL.Range(i, Count-1);
+                case Location.LT: return new NumCIL.Range(0, i);
+                case Location.LE: return new NumCIL.Range(0, i);
+                case Location.EQ: return new NumCIL.Range(i, i);
             }
-            return new Range(-1,-1);
+            throw new InvalidOperationException();
         }
 
         public abstract T[] AsArray();
@@ -245,7 +250,12 @@ namespace NArctic
 				yield return this [i];
 		}
 
-		public virtual int IndexOf (T item)
+        public int IndexOf(T item)
+        {
+            return this.IndexOf(item, Location.EQ);
+        }
+
+        public virtual int IndexOf (T item, Location match=0)
 		{
 			throw new NotSupportedException ();
 		}
@@ -264,6 +274,7 @@ namespace NArctic
 		{
             throw new NotSupportedException();
         }
+
 
 		public void Clear ()
 		{
@@ -338,6 +349,11 @@ namespace NArctic
             Source[index] = setter((T)value);
         }
 
+        public override void Append(Series other)
+        {
+            Source.Append((other as Series<T,Q>).Source);
+        }
+
         public override Series Clone ()
 		{
             return Copy();
@@ -354,9 +370,9 @@ namespace NArctic
 				yield return getter(q);
 		}
 
-        public override int IndexOf(T item)
+        public override int IndexOf(T item, Location match= Location.EQ)
         {
-            return Source.IndexOf(setter(item));
+            return Source.IndexOf(setter(item), match);
         }
 
 
@@ -449,6 +465,11 @@ namespace NArctic
             return new DateTimeSeries(new Series<long>(r));
         }
 
+        public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol, Func<long, DateTime> getter, Func<DateTime, long> setter)
+        {
+            return new DateTimeSeries(Series<long>.FromBuffer(buf, buftype, iheight, icol) as Series<long>);
+        }
+
     }
 
     public class Series<T> : BaseSeries<T>
@@ -505,31 +526,55 @@ namespace NArctic
             }
 		}
 
-        public override int IndexOf(T item)
+        public override void Append(Series other)
         {
-            return BinarySerch(item, Comparer<T>.Default);
+            int oldCount = this.Count;
+            this.Count += other.Count;
+            var other1 = other.As<T>();
+            for (int i = 0; i < other.Count; i++)
+                this.Values[oldCount + i] = other1.Values[i];
         }
 
-        public int BinarySerch(T item, IComparer<T> comparer)
+        public override int IndexOf(T item, Location match=Location.EQ)
+        {
+            return (int)BinarySearch(item, Comparer<T>.Default, match);
+        }
+
+        public long BinarySearch(T item, IComparer<T> comparer, Location match)
         {
             var first = 0L;
             var last = Values.Count() - 1;
-
-            while (last > first)
+            // we treat first<=item<=last
+            while (last >= first)
             {
-                var mid = last / 2;
+                long mid = (first+last) / 2;
                 var vmid = Values.Value[mid];
                 var cmp = comparer.Compare(item, vmid);
-                if (cmp<0)
+                if (cmp <= 0)
                     last = mid;
-                else if (cmp>0)
+                if (cmp >= 0)
                     first = mid;
-                else
-                    return (int)mid;
+                if (last - first <= 1)
+                {
+                    var cfirst = comparer.Compare(Values.Value[first], item);
+                    var clast = comparer.Compare(Values.Value[last], item);
+                    switch (match)
+                    {
+                        case Location.EQ:
+                            return cfirst == 0 ? first : (clast == 0 ? last : -1);
+                        case Location.GE:
+                            return cfirst >= 0 ? first : (clast >= 0 ? last : (last+1<Values.Count()?last+1:-1));
+                        case Location.LE:
+                            return clast <= 0 ? last: (cfirst <= 0 ? first: (first-1>=0?first-1:-1));
+                        case Location.GT:
+                            return cfirst > 0 ? first : (clast > 0 ? last : (last + 1 < Values.Count() ? last + 1 : -1));
+                        case Location.LT:
+                            return clast < 0 ? last : (cfirst < 0 ? first : (first - 1 >= 0 ? first - 1 : -1));
+                        default: throw new NotImplementedException();
+                    }
+                }
             }
-
-            return (int)first;
-
+            return -1;
         }
 
 
@@ -567,7 +612,7 @@ namespace NArctic
 
 		public override Series this [Range range] {
 			get {
-				return new Series<T>(Values[range], this.DType.Clone());
+				return new Series<T>(range.Initialized ? Values[range] : new NdArray<T>(new Shape(0)), this.DType.Clone());
 			}
 		}
 
@@ -604,8 +649,6 @@ namespace NArctic
         {
             this[index] = (T)value;
         }
-
-
 	}
 }
 

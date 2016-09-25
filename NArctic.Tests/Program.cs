@@ -275,6 +275,22 @@ namespace NArctic.Tests
             if ( v != 50)
                 throw new InvalidOperationException();
         }
+
+        public static void TestBinSearch()
+        {
+            var values = new List<int> { 1, 3, 5 };
+            var s = new Series<int>(values);
+            Console.WriteLine(string.Join(",",values.Select(v=>v.ToString()).ToArray()));
+            values = new List<int> { 0, 1, 2, 3, 4, 5, 6 };
+            foreach (var v in values)
+            {
+                Console.WriteLine("IndexOf({1},EQ)=={0}", s.IndexOf(v, Location.EQ),v);
+                Console.WriteLine("IndexOf({1},GE)=={0}", s.IndexOf(v, Location.GE),v);
+                Console.WriteLine("IndexOf({1},GT)=={0}", s.IndexOf(v, Location.GT),v);
+                Console.WriteLine("IndexOf({1},LE)=={0}", s.IndexOf(v, Location.LE),v);
+                Console.WriteLine("IndexOf({1},LT)=={0}", s.IndexOf(v, Location.LT), v);
+            }
+        }
         public static void Main (string[] args)
 		{
 			Serilog.Log.Logger = new Serilog.LoggerConfiguration()
@@ -294,10 +310,10 @@ namespace NArctic.Tests
              TestReflection();
              
              TestGrowingCase();
-
+            TestMetadata();
              */
             //TestArcticDateTimeIndex("net.securities", purge: true, del: true);
-            TestMetadata();
+            TestBinSearch();
             Console.WriteLine ("DONE");
 		}
 	}

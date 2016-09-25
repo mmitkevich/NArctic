@@ -29,7 +29,7 @@ namespace NArctic
 		protected IMongoCollection<BsonDocument> _version_numbers;
 
         public static string PREFIX = "arctic_";
-        protected string Name;
+        public string Name;
 
 		public Arctic(MongoClient mongo, string lib, bool purge=false)
 		{
@@ -141,8 +141,14 @@ namespace NArctic
 					segcount++;
 				}
 			}
-			if (segcount == 0)
-				throw new InvalidOperationException ("No segments found for {0}".Args (version));
+            var metadata = version.GetValue("metadata", new BsonDocument()).AsBsonDocument;
+            if (segcount == 0)
+            {
+                //var df1 = new DataFrame();
+                //df1.Metadata = metadata;
+                //return df1;
+                //throw new InvalidOperationException("No segments found for {0}".Args(version));
+            }
 			
 			var nrows = end_segment-start_segment+1;
 			var dtype = version ["dtype"].AsString;
@@ -155,8 +161,8 @@ namespace NArctic
             if (index_name != null) {
                 df.Index = df.Columns[index_name.AsString];
             }
-            var metadata = version.GetValue("metadata", new BsonDocument()).AsBsonDocument;
             df.Metadata = metadata;
+            df.Name = symbol;
             df.Count = df.Rows.Count;
             // TODO: Filter first/last segment
             return df;
@@ -203,90 +209,97 @@ namespace NArctic
                 }
                 return ver;
             }
-
-            var previous_version = await ReadVersionAsync(symbol);
-            var version = await GetNewVersion (symbol, previous_version);
-
-			/*var previous_version = await (_versions.AsQueryable ()
-				.Where (v => v ["symbol"] == symbol && v ["version"] < version ["version"])
-				.OrderByDescending (v => v ["version"]) as IAsyncCursorSource<BsonDocument>)
-				.FirstOrDefaultAsync ();*/
-
-			var dtype = version.GetValue ("dtype", "").ToString();
-            Log.Debug("loaded dtype {0}", dtype);
-            if (dtype!="" && df.DType.ToString()!=dtype) {
-				// dtype changed. need reload old data and repack it.
-				throw new NotImplementedException("old dtype {0}, new dtype {1}: not implemented".Args(dtype,df.DType));
-			}
-
-            var sdt = df.DType.ToString();
-
-            version["metadata"] = df.Metadata;
-
-            version ["dtype"] = sdt;
-            Log.Debug("saved dtype {0}", sdt);
-
-			version ["shape"] = new BsonArray{ {-1} };
-			version ["dtype_metadata"] = new BsonDocument { 
-				{ "index", new BsonArray { { df.Index.Name } } } ,
-				{ "columns", new BsonArray(df.Columns.Select(c=>c.Name).ToList()) }
-			};
-			version ["type"] = "pandasdf";
-			version ["segment_count"] =  previous_version != null ? previous_version ["segment_count"].AsInt32 + 1 : 1;
-			version ["append_count"] = previous_version != null ? previous_version ["append_count"].AsInt32 + 1 : 0;
-
-            var seg_ind_buf = new ByteBuffer();
-			int segment_offset = 0;
-            bool is_date_time_index = DType.DateTime64.ToString().Equals(df.Index.DType.ToString());
-
-            //version ["base_sha"] = version ["sha"];
-            if (previous_version != null) {
-				var seg_ind = previous_version ["segment_index"].AsByteArray;
-                seg_ind_buf.AppendDecompress(seg_ind);
-				segment_offset = previous_version ["up_to"].AsInt32;
-                if (is_date_time_index && skipAlreadyWrittenDates)
-                {
-                    long date = seg_ind_buf.Read<long>(seg_ind_buf.Length - 16);
-                    DateTime dt = DateTime64.ToDateTime(date);
-                    var range = df.Index.AsDateTime().FindRange(x => x > dt);
-                    if (range.Last <= range.First)
-                    {
-                        Log.Information($"Skipped DataFrame.Append because date {dt} already written for {symbol}");
-                        return null; // Hey all was skipped
-                    }else if (range.First != 0)
-                    {
-                        Log.Information($"Skipped DataFrame.Append initial {range.First} elements date {dt} already written for {symbol}");
-                    }
-                    df = df[range];
-                }    
-            }
-
-
-            var up_to = segment_offset + df.Rows.Count;
-
-            // add index that is last datetime + 0-based int64 index of last appended record like (segment_count-1)
-            if (is_date_time_index)
+            int attemptNo = 0;
+            for (;;)
             {
-                var date = df.Index.AsDateTime().Source[-1];
-                seg_ind_buf.Append<long>(date);
-                seg_ind_buf.Append<long>(up_to - 1);
-            }
+                var previous_version = await ReadVersionAsync(symbol);
+                var version = await GetNewVersion(symbol, previous_version);
 
-            var seg_ind_buf2 = new ByteBuffer();
-            seg_ind_buf2.AppendCompress(seg_ind_buf.GetBytes());
-			version ["segment_index"] = seg_ind_buf2.GetBytes();
-            version["up_to"] = up_to;
-			var buf = new ByteBuffer();
-			var bin = df.ToBuffer ();
-			buf.AppendCompress(bin);
+                /*var previous_version = await (_versions.AsQueryable ()
+                    .Where (v => v ["symbol"] == symbol && v ["version"] < version ["version"])
+                    .OrderByDescending (v => v ["version"]) as IAsyncCursorSource<BsonDocument>)
+                    .FirstOrDefaultAsync ();*/
 
-			var sha1 = SHA1.Create();
+                var dtype = version.GetValue("dtype", "").ToString();
+                Log.Debug("loaded dtype {0}", dtype);
+                if (dtype != "" && df.DType.ToString() != dtype)
+                {
+                    // dtype changed. need reload old data and repack it.
+                    throw new NotImplementedException("old dtype {0}, new dtype {1}: not implemented".Args(dtype, df.DType));
+                }
 
-			var sha = version.GetValue ("sha", null);
-			if (sha == null) {
-				byte[] hashBytes = sha1.ComputeHash(bin);
-				version ["sha"] = new BsonBinaryData (hashBytes);
-			}
+                var sdt = df.DType.ToString();
+
+                version["metadata"] = df.Metadata;
+
+                version["dtype"] = sdt;
+                Log.Debug("saved dtype {0}", sdt);
+
+                version["shape"] = new BsonArray { { -1 } };
+                version["dtype_metadata"] = new BsonDocument {
+                    { "index", new BsonArray { { df.Index.Name } } } ,
+                    { "columns", new BsonArray(df.Columns.Select(c=>c.Name).ToList()) }
+                };
+                version["type"] = "pandasdf";
+                version["segment_count"] = previous_version != null ? previous_version["segment_count"].AsInt32 + 1 : 1;
+                version["append_count"] = previous_version != null ? previous_version["append_count"].AsInt32 + 1 : 0;
+
+                var seg_ind_buf = new ByteBuffer();
+                int segment_offset = 0;
+                bool is_date_time_index = DType.DateTime64.ToString().Equals(df.Index.DType.ToString());
+
+                //version ["base_sha"] = version ["sha"];
+                if (previous_version != null)
+                {
+                    var seg_ind = previous_version["segment_index"].AsByteArray;
+                    seg_ind_buf.AppendDecompress(seg_ind);
+                    segment_offset = previous_version["up_to"].AsInt32;
+                    if (is_date_time_index && skipAlreadyWrittenDates)
+                    {
+                        long date = seg_ind_buf.Read<long>(seg_ind_buf.Length - 16);
+                        DateTime dt = DateTime64.ToDateTime(date);
+                        var range = df.Index.AsDateTime().RangeOf(dt, Location.GT);
+                        if (range.Last <= range.First)
+                        {
+                            Log.Information($"Skipped DataFrame.Append because date {dt} already written for {symbol}");
+                            return null; // Hey all was skipped
+                        }
+                        else if (range.First != 0)
+                        {
+                            Log.Information($"Skipped DataFrame.Append initial {range.First} elements date {dt} already written for {symbol}");
+                        }
+                        df = df[range];
+                    }
+                }
+
+
+                var up_to = segment_offset + df.Rows.Count;
+                var buf = new ByteBuffer();
+
+                // add index that is last datetime + 0-based int64 index of last appended record like (segment_count-1)
+                if (is_date_time_index && df.Rows.Count > 0)
+                {
+                    var date = df.Index.AsDateTime().Source[-1];
+                    seg_ind_buf.Append<long>(date);
+                    seg_ind_buf.Append<long>(up_to - 1);
+                }
+
+                var seg_ind_buf2 = new ByteBuffer();
+                seg_ind_buf2.AppendCompress(seg_ind_buf.GetBytes());
+                version["segment_index"] = seg_ind_buf2.GetBytes();
+
+                version["up_to"] = up_to;
+                var bin = df.ToBuffer();
+                buf.AppendCompress(bin);
+
+                var sha1 = SHA1.Create();
+
+                var sha = version.GetValue("sha", null);
+                if (sha == null)
+                {
+                    byte[] hashBytes = sha1.ComputeHash(bin);
+                    version["sha"] = new BsonBinaryData(hashBytes);
+                }
 
 #if false
 			var buf2 = new ByteBuffer ();
@@ -296,38 +309,45 @@ namespace NArctic
 				throw new InvalidOperationException ();
 			var df2 = DataFrame.FromBuffer(bin2, df.DType, df.Rows.Count);
 #endif
-			var segment = new BsonDocument { 
-				{"symbol", symbol},
-				{"data", new BsonBinaryData(buf.GetBytes())},
-				{"compressed", true},
-				{"segment", segment_offset + df.Rows.Count - 1},
-				{"parent", new BsonArray{ version["_id"] }},
-			};
+                var segment = new BsonDocument {
+                    {"symbol", symbol},
+                    {"data", new BsonBinaryData(buf.GetBytes())},
+                    {"compressed", true},
+                    {"segment", segment_offset + df.Rows.Count - 1},
+                    {"parent", new BsonArray{ version["_id"] }},
+                };
 
-			var hash = new ByteBuffer();
-			hash.Append(Encoding.ASCII.GetBytes(symbol));
-			foreach(var key in segment.Names.OrderByDescending(x=>x)) {
-				var value = segment.GetValue (key);
-				if (value is BsonBinaryData)
-					hash.Append (value.AsByteArray);
-				else {
-					var str = value.ToString ();
-					hash.Append (Encoding.ASCII.GetBytes (str));
-				}
-			}
-			segment ["sha"] = sha1.ComputeHash (hash.GetBytes ());
+                var hash = new ByteBuffer();
+                hash.Append(Encoding.ASCII.GetBytes(symbol));
+                foreach (var key in segment.Names.OrderByDescending(x => x))
+                {
+                    var value = segment.GetValue(key);
+                    if (value is BsonBinaryData)
+                        hash.Append(value.AsByteArray);
+                    else {
+                        var str = value.ToString();
+                        hash.Append(Encoding.ASCII.GetBytes(str));
+                    }
+                }
+                segment["sha"] = sha1.ComputeHash(hash.GetBytes());
 
-			await _segments.InsertOneAsync(segment);
-			//await _versions.InsertOneAsync(version);	
-			await _versions.ReplaceOneAsync(BF.Eq("symbol", symbol), version, Upsert);
+                //await _versions.InsertOneAsync(version);	
+                try {
+                    await _versions.ReplaceOneAsync(BF.Eq("symbol", symbol), version, Upsert);
+                }catch(MongoWriteException e)
+                {
+                    Log.Information("Retrying append symbol {symbol}, attempt {attemptNo}", symbol, attemptNo++);
+                    continue;
+                }
+                await _segments.InsertOneAsync(segment);
+                //Log.Information ("inserted new segment {segment} for symbol {symbol}", segment["_id"], symbol);
+                //Log.Information ("replaced version {0} for symbol {symbol} sha1 {sha}", version["_id"], symbol, sha);
 
-			Log.Information ("inserted new segment {segment} for symbol {symbol}", segment["_id"], symbol);
-			Log.Information ("replaced version {0} for symbol {symbol} sha1 {sha}", version["_id"], symbol, sha);
-
-			// update parents in versions
-			//var res = await _segments.UpdateManyAsync (BF.Eq("symbol", symbol), BU.Set ("parent", new BsonArray{ version ["_id"] }));
-			//Log.Debug ("updated segments parents {0}".Args(res.MatchedCount));
-			return version;
+                // update parents in versions
+                //var res = await _segments.UpdateManyAsync (BF.Eq("symbol", symbol), BU.Set ("parent", new BsonArray{ version ["_id"] }));
+                //Log.Debug ("updated segments parents {0}".Args(res.MatchedCount));
+                return version;
+            }
 		}
 
 		public async Task<BsonDocument> GetNewVersion(string symbol, BsonDocument version=null)
@@ -349,16 +369,33 @@ namespace NArctic
 			return version;
 		}
 
-        public async Task<List<BsonDocument>> ListSymbolsAsync(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter = null)
+        public async Task<List<BsonDocument>> ListSymbolsAsync()
         {
-            var cur = filter != null ? _versions.Find(filter) : _versions.Find(x=>true);
+            return await (await _versions.FindAsync(x => true)).ToListAsync();
+        }
+
+        public async Task<List<BsonDocument>> ListSymbolsAsync(FilterDefinition<BsonDocument> filter)
+        {
+            var cur = await _versions.FindAsync(filter);
             return await cur.ToListAsync();
         }
 
-        public List<BsonDocument> ListSymbols(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter = null)
+        public async Task<List<BsonDocument>> ListSymbolsAsync(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter)
+        {
+            var cur = await _versions.FindAsync(filter);
+            return await cur.ToListAsync();
+        }
+
+        public IMongoCollection<BsonDocument> Symbols {
+            get { return _versions; }
+        }
+
+        public List<BsonDocument> ListSymbols(System.Linq.Expressions.Expression<Func<BsonDocument, bool>> filter)
         {
             return ListSymbolsAsync(filter).Result;
-        }        
+        }
+
+        public static FilterDefinitionBuilder<BsonDocument> Filter = Builders<BsonDocument>.Filter;
 	}
 }
 
