@@ -225,17 +225,17 @@ namespace NArctic
             }
         }
 
-        public Range RangeOf(T value, Location match=Location.GE)
+        public Range RangeOf(T value, int startIndex=0, int endIndex=-1, Location match=Location.GE)
         {
-            var i = this.IndexOf(value, match);
+            var i = this.IndexOf(value, startIndex, endIndex, match);
             if (i < 0) return new NumCIL.Range();
             switch (match)
             {
-                case Location.GE: return new NumCIL.Range(i, Count-1);
-                case Location.GT: return new NumCIL.Range(i, Count-1);
-                case Location.LT: return new NumCIL.Range(0, i);
-                case Location.LE: return new NumCIL.Range(0, i);
-                case Location.EQ: return new NumCIL.Range(i, i);
+                case Location.GE: return new NumCIL.Range(i, endIndex < 0 ? endIndex+1 : endIndex);
+                case Location.GT: return new NumCIL.Range(i, endIndex < 0 ? endIndex + 1 : endIndex);
+                case Location.LT: return new NumCIL.Range(startIndex, i);
+                case Location.LE: return new NumCIL.Range(startIndex, i+1);
+                case Location.EQ: return new NumCIL.Range(i);
             }
             throw new InvalidOperationException();
         }
@@ -252,10 +252,10 @@ namespace NArctic
 
         public int IndexOf(T item)
         {
-            return this.IndexOf(item, Location.EQ);
+            return this.IndexOf(item, match:Location.EQ);
         }
 
-        public virtual int IndexOf (T item, Location match=0)
+        public virtual int IndexOf (T item, int startIndex=0, int endIndex=-1, Location match=0)
 		{
 			throw new NotSupportedException ();
 		}
@@ -370,9 +370,9 @@ namespace NArctic
 				yield return getter(q);
 		}
 
-        public override int IndexOf(T item, Location match= Location.EQ)
+        public override int IndexOf(T item, int startIndex=0, int endIndex=-1, Location match= Location.EQ)
         {
-            return Source.IndexOf(setter(item), match);
+            return Source.IndexOf(setter(item), startIndex, endIndex, match);
         }
 
 
@@ -535,15 +535,15 @@ namespace NArctic
                 this.Values[oldCount + i] = other1.Values[i];
         }
 
-        public override int IndexOf(T item, Location match=Location.EQ)
+        public override int IndexOf(T item, int startIndex=0, int endIndex=-1,Location match=Location.EQ)
         {
-            return (int)BinarySearch(item, Comparer<T>.Default, match);
+            return (int)BinarySearch(item, Comparer<T>.Default, startIndex, endIndex, match);
         }
 
-        public long BinarySearch(T item, IComparer<T> comparer, Location match)
+        public long BinarySearch(T item, IComparer<T> comparer, int startIndex=0, int endIndex=-1, Location match=Location.EQ)
         {
             var first = 0L;
-            var last = Values.Count() - 1;
+            var last = endIndex<0 ? Values.Count() + endIndex : endIndex-1;
             // we treat first<=item<=last
             while (last >= first)
             {

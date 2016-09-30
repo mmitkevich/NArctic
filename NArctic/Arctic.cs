@@ -163,7 +163,7 @@ namespace NArctic
             }
             df.Metadata = metadata;
             df.Name = symbol;
-            df.Count = df.Rows.Count;
+            df.FilledCount = df.Rows.Count;
             // TODO: Filter first/last segment
             return df;
 		}
@@ -258,7 +258,7 @@ namespace NArctic
                     {
                         long date = seg_ind_buf.Read<long>(seg_ind_buf.Length - 16);
                         DateTime dt = DateTime64.ToDateTime(date);
-                        var range = df.Index.AsDateTime().RangeOf(dt, Location.GT);
+                        var range = df.Index.AsDateTime().RangeOf(dt, 0, df.FilledCount-1, Location.GT);
                         if (range.Last <= range.First)
                         {
                             Log.Information($"Skipped DataFrame.Append because date {dt} already written for {symbol}");

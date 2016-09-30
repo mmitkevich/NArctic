@@ -208,8 +208,8 @@ namespace NArctic
         
         public int Count
         {
-            get { return DataFrame.Count; }
-            set { DataFrame.Count = value; }
+            get { return DataFrame.FilledCount; }
+            set { DataFrame.FilledCount = value; }
         }
 
         public bool IsReadOnly

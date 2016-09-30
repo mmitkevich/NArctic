@@ -26,6 +26,7 @@ using System.Linq;
 using System.Text;
 using NumCIL.Generic;
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 
 namespace NumCIL.Unsafe
 {
@@ -34,7 +35,7 @@ namespace NumCIL.Unsafe
 		/// <summary>
 		/// Lookup table for generic methods that have been created and are ready for use
 		/// </summary>
-		private static Dictionary<string, System.Reflection.MethodInfo> _resolvedMethods = new Dictionary<string, System.Reflection.MethodInfo>();
+		private static ConcurrentDictionary<string, System.Reflection.MethodInfo> _resolvedMethods = new ConcurrentDictionary<string, System.Reflection.MethodInfo>();
 
 		/// <summary>
 		/// Attempts to use a typed version of the Unary call, 
@@ -155,7 +156,7 @@ namespace NumCIL.Unsafe
 		/// <param name="out">The output target</param>
 		private static bool UFunc_Op_Inner_Binary_Flush_Typed<Ta, Tb, C>(C op, NdArray<Ta> in1,  NdArray<Ta> in2, NdArray<Tb> @out)
 		{
-			System.Reflection.MethodInfo f;
+            System.Reflection.MethodInfo f = null;
 			var key = typeof(Ta).FullName + "#" + typeof(Tb).FullName + "#" + op.GetType().FullName + "#BIN";
 			if (!_resolvedMethods.TryGetValue(key, out f))
 			{
@@ -169,8 +170,10 @@ namespace NumCIL.Unsafe
 					@out.GetType()
 				}, null);
 
-				_resolvedMethods[key] = f = n == null ? null : n.MakeGenericMethod(new Type[] { op.GetType() });
-			}
+				if(n!=null)
+                    f = n.MakeGenericMethod(new Type[] { op.GetType() });
+                _resolvedMethods[key] = f;
+            }
 
 			if (f != null)
 			{

@@ -263,7 +263,7 @@ namespace NArctic
 
         public int Count
         {
-            get { return DataFrame.Count; }
+            get { return DataFrame.FilledCount; }
         }
 
         public bool IsReadOnly
@@ -297,14 +297,14 @@ namespace NArctic
 
         public void Add(K key, V value)
         {
-            this.DataFrame.Count++;
+            this.DataFrame.FilledCount++;
             this.keys.Add(key);
             this.values.Add(value);
         }
 
         public void Clear()
         {
-            this.DataFrame.Count = 0;
+            this.DataFrame.FilledCount = 0;
         }
 
         public bool Contains(KeyValuePair<K, V> item)
@@ -368,7 +368,7 @@ namespace NArctic
         public BsonDocument Metadata { get; set; } = new BsonDocument();
         public string Name { get; set; }
 
-        private int usedCount;
+        private int filledCount;
 
         public DType DType {
 			get { return Columns.DType; } 
@@ -397,6 +397,7 @@ namespace NArctic
 				this.Columns.Add (x, x.Name);
 			}
             this.Index = index.Unwrap(i => this.Columns[i]);
+            this.FilledCount = this.Rows.Count;
 		}
 
         public DataFrame(long count, Type[] types = null, string[] names=null, string index=null) 
@@ -410,27 +411,33 @@ namespace NArctic
             }
         }
 
-        public int Count {
+        public int FilledCount {
             get {
-                return this.usedCount;
+                return this.filledCount;
             }
             set {
-                this.usedCount = value;
-                if (this.usedCount > Rows.Count)
+                this.filledCount = value;
+                if (this.filledCount > Rows.Count)
                 {
                     int maxCount = 0;
                     // need grow
                     foreach(var c in Columns)
                     {
-                        if (c.Count < 2 * usedCount)
-                            c.Count = 2 * usedCount;
+                        if (c.Count < 2 * filledCount)
+                            c.Count = 2 * filledCount;
                         if (c.Count > maxCount)
                             maxCount = c.Count;
                     }
-                    Rows.Count = Math.Max(usedCount, maxCount);
+                    Rows.Count = Math.Max(filledCount, maxCount);
                 }
             }
         }  
+        public DataFrame Filled
+        {
+            get {
+                return this[new Range(0, this.FilledCount)];
+            }
+        }
 
         public TypedFrame<T> As<T>() where T:new()
         {
@@ -452,10 +459,10 @@ namespace NArctic
             get { return Columns[column]; }
         }
 
-        // stop INCLUSIVE
+        // stop>0 EXCLUSIVE, stop<=0 means Count-1-stop.. TODO: Refactor NdArray for numpy-style
         public DataFrame Range(int start=0, int stop=-1)
         {
-            return this[new Range(start, stop/*<0?stop+Count:stop-1*/)];
+            return this[new Range(start, stop<0?stop+FilledCount+1:stop/*<0?stop+Count:stop-1*/)];
         }
 
         public Series this[string column, Type t]
@@ -477,8 +484,8 @@ namespace NArctic
                 return this[column].At(row);
             }
             set {
-                if (row+1 > this.Count)
-                    this.Count = row + 1;
+                if (row+1 > this.FilledCount)
+                    this.FilledCount = row + 1;
 
                 Series s = this[column, value.GetType()];
                 s.Set(row, value);
@@ -498,7 +505,7 @@ namespace NArctic
 		{
 			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Unwrap(i=>i.Name));
             df.Metadata = this.Metadata.DeepClone().AsBsonDocument;
-
+            df.Name = this.Name;
 			return df;
 		}
 
@@ -511,6 +518,7 @@ namespace NArctic
 			get {
                 var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Unwrap(i=>i.Name));
                 rtn.Metadata = this.Metadata;
+                rtn.Name = this.Name;
                 return rtn;
 
             }
@@ -527,27 +535,25 @@ namespace NArctic
         }
 
         // 0 = EQ key, -2: LT key, -1 LE key, 1 GE key, 2 GT key
-        public DataFrame Loc<T>(T key, Location match=Location.EQ)
+        public DataFrame Loc<T>(T key, int startIndex=0, int endIndex=-1, Location match=Location.EQ)
         {
             if (this.Index == null)
                 throw new InvalidOperationException("Please specify index");
             var s = this.Index.As<T>();
-            var range =  s.RangeOf(key, match);
+            var range =  s.RangeOf(key, startIndex, endIndex<0 ? this.FilledCount+endIndex+1:endIndex, match);
             return this[range];
         }
 
-        public DataFrame Concat(DataFrame other)
+        public void Append(DataFrame other)
         {
-            DataFrame result = this.Clone();
             foreach(var c in other)
             {
-                if (this.Columns.Contains(c.Name))
-                    result[c.Name].Append(c);
-                else
+                if (!this.Columns.Contains(c.Name))
                     throw new InvalidOperationException("DataFrame.Concat only supports dataframes with equal columns sets");
-                result.Rows.Count = result[c.Name].Count;
+                this[c.Name].Append(c);
+                this.Rows.Count = this[c.Name].Count;
             }
-            return result;
+            this.FilledCount += other.FilledCount;
         }
 
         public IDictionary<K, V> AsMap<K,V>(int indexColumn, int valuesColumn)

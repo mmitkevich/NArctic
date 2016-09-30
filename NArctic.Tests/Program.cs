@@ -239,7 +239,7 @@ namespace NArctic.Tests
                 Console.WriteLine("Deleted {0} versi\tons for {1}".Args(delcnt, symbol));
             }
             var df = new DataFrame();
-            df.Count = 2;
+            df.FilledCount = 2;
             df.Col<DateTime>("date")[0] = new DateTime(2015,1,1);
             df.Col<DateTime>("date")[1] = new DateTime(2015,2,1);
             df.Col<long>("value")[0] = 15;
@@ -254,16 +254,16 @@ namespace NArctic.Tests
         public static void TestGrowingCase()
         {
             var df = new DataFrame();
-            df.Count = 3;   // "use" space
+            df.FilledCount = 3;   // "use" space
             Console.WriteLine($"Initial df {df}");
             for (var i = 0; i < 10; i++)
             {
                 df["a", i] = i;
                 df["b", i+1] = -i;
-                Console.WriteLine($"Count={df.Count}, Rows.Count={df.Rows.Count}");
+                Console.WriteLine($"Count={df.FilledCount}, Rows.Count={df.Rows.Count}");
             }
             Console.WriteLine($"Final df {df}");
-            df.Count = 0;
+            df.FilledCount = 0;
             Console.WriteLine($"Final df after free {df}");
         }
 
@@ -284,11 +284,11 @@ namespace NArctic.Tests
             values = new List<int> { 0, 1, 2, 3, 4, 5, 6 };
             foreach (var v in values)
             {
-                Console.WriteLine("IndexOf({1},EQ)=={0}", s.IndexOf(v, Location.EQ),v);
-                Console.WriteLine("IndexOf({1},GE)=={0}", s.IndexOf(v, Location.GE),v);
-                Console.WriteLine("IndexOf({1},GT)=={0}", s.IndexOf(v, Location.GT),v);
-                Console.WriteLine("IndexOf({1},LE)=={0}", s.IndexOf(v, Location.LE),v);
-                Console.WriteLine("IndexOf({1},LT)=={0}", s.IndexOf(v, Location.LT), v);
+                Console.WriteLine("IndexOf({1},EQ)=={0}", s.IndexOf(v, match:Location.EQ),v);
+                Console.WriteLine("IndexOf({1},GE)=={0}", s.IndexOf(v, match: Location.GE),v);
+                Console.WriteLine("IndexOf({1},GT)=={0}", s.IndexOf(v, match: Location.GT),v);
+                Console.WriteLine("IndexOf({1},LE)=={0}", s.IndexOf(v, match: Location.LE),v);
+                Console.WriteLine("IndexOf({1},LT)=={0}", s.IndexOf(v, match: Location.LT), v);
             }
         }
         public static void Main (string[] args)
