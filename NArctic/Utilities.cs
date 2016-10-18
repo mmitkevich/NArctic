@@ -144,6 +144,12 @@ namespace Utilities
 			return v;
 		}
 
+        public static List<T> ToList<T>(T value) {
+            var l = new List<T>();
+            l.Add(value);
+            return l;
+        }
+
 
 		public static TValue GetOrAdd<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key, Func<TKey,TValue> getval)
 		{

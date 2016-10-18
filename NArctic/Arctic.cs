@@ -180,11 +180,13 @@ namespace NArctic
 		public async Task<long> DeleteAsync(string symbol)
 		{
 			var rtn = await _segments.DeleteManyAsync (BF.Eq ("symbol", symbol));
-			Log.Information ("Deleted {count} segments for {symbol}", rtn.DeletedCount, symbol);
+			//Log.Information ("Deleted {count} segments for {symbol}", rtn.DeletedCount, symbol);
 			rtn = await _versions.DeleteManyAsync (BF.Eq ("symbol", symbol));
-			Log.Information ("Deleted {count} versions for {symbol}", rtn.DeletedCount, symbol);
+			//Log.Information ("Deleted {count} versions for {symbol}", rtn.DeletedCount, symbol);
 			return rtn.DeletedCount;
 		}
+
+        public IMongoCollection<BsonDocument> Versions { get { return _versions; } }
 
         public BsonDocument Append(string symbol, DataFrame df, int chunksize = 0)
         {
