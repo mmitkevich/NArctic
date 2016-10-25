@@ -380,6 +380,21 @@ namespace NArctic
 			Columns.SeriesListChanged += this.OnColumnsChanged;
 		}
 
+        public static DataFrame FromMap<K,V>(IDictionary<K,V> map, string keys, string values)
+        {
+            var result = new DataFrame();
+            var ks = result.Col<K>(keys);
+            var vs = result.Col<V>(values);
+            result.Index = ks;
+            foreach (var kv in map)
+            {
+                result.FilledCount++;
+                ks[result.FilledCount - 1] = kv.Key;
+                vs[result.FilledCount - 1] = kv.Value;
+            }
+            return result;
+        }
+
         public DataFrame(IDictionary<string, Series> series)
             :this()
         {
