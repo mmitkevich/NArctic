@@ -195,8 +195,9 @@ namespace NArctic
                     return "<i4";
                 else if (Type == typeof(DateTime))
 					return "<M8[ns]";
-				else
-					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
+                else if (Type == typeof(string))
+                    return $"S{Size}";                else
+                    throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
 			}
 				
 		}
