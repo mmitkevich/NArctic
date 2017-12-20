@@ -141,7 +141,8 @@ namespace NArctic
 					segcount++;
 				}
 			}
-            var metadata = version.GetValue("metadata", new BsonDocument()).AsBsonDocument;
+            var metadataVal = version.GetValue("metadata", new BsonDocument());
+            var metadata = !metadataVal.IsBsonNull ? metadataVal.AsBsonDocument : null;
             if (segcount == 0)
             {
                 //var df1 = new DataFrame();
