@@ -170,7 +170,12 @@ namespace NArctic
                     if (sizeof(long) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;
-				}else
+                } else if (val.StartsWith("S"))
+                {
+                    cur.Type = typeof(string);
+                    cur.Size = int.Parse(val.Remove(0, 1));
+                }
+                else
 					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (val));
 				i += kk;k += kk;
 				return k;

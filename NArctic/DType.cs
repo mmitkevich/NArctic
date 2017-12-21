@@ -162,7 +162,7 @@ namespace NArctic
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
-			int elsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+			int elsize = typeof(T) == typeof(char[]) ? System.Runtime.InteropServices.Marshal.SizeOf(typeof(char)) * dtype.Size : System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
 			GCHandle ghsrc = GCHandle.Alloc (buf, GCHandleType.Pinned);
 			GCHandle ghdst = GCHandle.Alloc (data, GCHandleType.Pinned);
 			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), 0, elsize, ghsrc.AddrOfPinnedObject(), fieldOffset, bytesPerRow, iheight, elsize);
