@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using MongoDB.Driver;
 using NumCIL.Boolean;
 using MongoDB.Bson;
+using System.Text;
 
 namespace NArctic
 {
@@ -122,7 +123,7 @@ namespace NArctic
 
         public abstract void ToBuffer(byte[] buf, DType buftype, int iheight, int icol);
 
-        public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol)
+        public static Series FromBufferByType(byte[] buf, DType buftype, int iheight, int icol)
         {
             if (buftype.Fields[icol].Type == typeof(double))
             {
@@ -138,7 +139,7 @@ namespace NArctic
             }
             else if (buftype.Fields[icol].Type == typeof(string))
             {
-                return StringSeries.FromBuffer(buf, buftype, iheight, icol, ca=>ca.ToString(), s=>s.ToCharArray());
+                return StringSeries.FromBuffer(buf, buftype, iheight, icol);
             }
             else if (buftype.Fields[icol].Type == typeof(DateTime))
             {
@@ -242,6 +243,8 @@ namespace NArctic
                     DType = DType.DateTime64;
                 else if (typeof(T) == typeof(int))
                     DType = DType.Int;
+                else if (typeof(T) == typeof(string))
+                    throw new InvalidOperationException("DType.String cannot be implied, needs size");
                 else
                     throw new InvalidOperationException("unknown dtype");
             }
@@ -347,18 +350,18 @@ namespace NArctic
     {
         public BaseSeries<Q> Source;
 
-        static Q tq(T t)
+        static Q Tq(T t)
         {
             return (Q)(object)t;
         }
 
-        static T qt(Q q)
+        static T Qt(Q q)
         {
             return (T)(object)q;
         }
 
-        protected Func<T, Q> setter = tq;
-        protected Func<Q, T> getter = qt;
+        protected Func<T, Q> setter = Tq;
+        protected Func<Q, T> getter = Qt;
 
         public Series(BaseSeries<Q> source, Func<Q, T> getter, Func<T, Q> setter, DType dtype = null)
             : base(dtype)
@@ -506,7 +509,7 @@ namespace NArctic
             }
         }
 
-        public static DateTimeSeries Range(int count, DateTime start, DateTime end)
+        public new static DateTimeSeries Range(int count, DateTime start, DateTime end)
         {
             var delta = (end - start).ToDateTime64() / count;
             var r = new NdArray<long>(new Shape(count));
@@ -515,65 +518,14 @@ namespace NArctic
             return new DateTimeSeries(new Series<long>(r));
         }
 
-        public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol, Func<long, DateTime> getter, Func<DateTime, long> setter)
+        public new static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol, Func<long, DateTime> getter, Func<DateTime, long> setter)
         {
             return new DateTimeSeries(Series<long>.FromBuffer(buf, buftype, iheight, icol) as Series<long>);
         }
 
     }
 
-    public class StringSeries : Series<string, char[]>
-    {
-        public StringSeries(long count, DType dtype = null)
-            : this(new Series<char[]>(count))
-        {
-        }
-
-        public StringSeries(IEnumerable<string> values, string name = null) : this(
-            new Series<char[]>(
-                values.Select(s => s.ToCharArray()).ToArray(), name)
-            )
-        {
-            Name = name;
-        }
-
-        //public DateTimeSeries(NdArray<long> array, DType dtype=null)
-        //    : this(new Series<long>(array))
-        //{
-        //}
-
-        public StringSeries(BaseSeries<char[]> source, DType dtype = null)
-            : base(source, getter: ca => ca.ToString(), setter: s => s.ToCharArray(), dtype: dtype ?? DType.DateTime64)
-        {
-
-        }
-
-        public override BaseSeries<string> Copy()
-        {
-            return new StringSeries(Source.Copy(), DType.Clone());
-        }
-
-        public override Series Clone()
-        {
-            return new StringSeries(Source.Copy(), DType.Clone());
-        }
-
-        public override Series this[Range range]
-        {
-            get
-            {
-                return new StringSeries(Source[range].As<char[]>(), this.DType.Clone());
-            }
-        }
-
-        public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol, Func<char[], string> getter, Func<string, char> setter)
-        {
-            return new StringSeries(Series<char[]>.FromBuffer(buf, buftype, iheight, icol) as Series<char[]>);
-        }
-    }
-
-
-    public class Series<T> : BaseSeries<T>
+        public class Series<T> : BaseSeries<T>
     {
         public override NdArray<T> Values { get; set; }
 
@@ -737,13 +689,13 @@ namespace NArctic
             T[] data = this.Values.AsArray();
             // hack here
             int ofs = (int)this.Values.Shape.Offset;
-            buftype.ToBuffer(buf, data, ofs, iheight, icol);
+            buftype.FillBufferFromData(buf, data, ofs, iheight, icol);
         }
 
         public static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol)
         {
             var data = new T[iheight];
-            buftype.FromBuffer(buf, data, iheight, icol);
+            buftype.FillDataFromBuffer(buf, data, iheight, icol);
             return new Series<T>(data, buftype.Fields[icol]);
         }
 
@@ -760,6 +712,38 @@ namespace NArctic
         public override void Set(int index, object value)
         {
             this[index] = (T)value;
+        }
+    }
+
+    public class StringSeries : Series<string>
+    {
+        public StringSeries(long count, DType dtype = null) : base(count, dtype)
+        {
+        }
+
+        public StringSeries(NdArray<string> values, DType dtype = null) : base(values, dtype)
+        {
+        }
+
+        public StringSeries(IEnumerable<string> data, string name = null) : base(data, name)
+        {
+        }
+
+        public StringSeries(string[] data, DType dtype = null, string name = null) : base(data, dtype, name)
+        {
+        }
+
+        public new static Series FromBuffer(byte[] buf, DType buftype, int iheight, int icol)
+        {
+            var data = new string[iheight];
+            var dtype = buftype.Fields[icol];
+            buftype.FillDataFromBufferSlow(buf, data, iheight, icol, byteConverter: BytesToString);
+            return new Series<string>(data, dtype);
+        }
+
+        public static string BytesToString(byte[] bytes, int index, int count)
+        {
+            return Encoding.UTF8.GetString(bytes, index, count).TrimEnd('\0');
         }
     }
 }
