@@ -38,8 +38,7 @@ namespace Vexe.Runtime.Extensions
             for (int i = 0; i < paramTypes.Length; i++)
                 key ^= paramTypes[i].GetHashCode();
 
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (CtorInvoker<T>)result;
 
             var dynMethod = new DynamicMethod(kCtorInvokerName,
@@ -70,8 +69,7 @@ namespace Vexe.Runtime.Extensions
                 throw new InvalidOperationException("Property is not readable " + property.Name);
 
             int key = GetKey<TTarget, TReturn>(property, kPropertyGetterName);
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (MemberGetter<TTarget, TReturn>)result;
 
             return GenDelegateForMember<MemberGetter<TTarget, TReturn>, PropertyInfo>(
@@ -96,8 +94,7 @@ namespace Vexe.Runtime.Extensions
                 throw new InvalidOperationException("Property is not writable " + property.Name);
 
             int key = GetKey<TTarget, TValue>(property, kPropertySetterName);
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (MemberSetter<TTarget, TValue>)result;
 
             return GenDelegateForMember<MemberSetter<TTarget, TValue>, PropertyInfo>(
@@ -119,8 +116,7 @@ namespace Vexe.Runtime.Extensions
         public static MemberGetter<TTarget, TReturn> DelegateForGet<TTarget, TReturn>(this FieldInfo field)
         {
             int key = GetKey<TTarget, TReturn>(field, kFieldGetterName);
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (MemberGetter<TTarget, TReturn>)result;
 
             return GenDelegateForMember<MemberGetter<TTarget, TReturn>, FieldInfo>(
@@ -142,8 +138,7 @@ namespace Vexe.Runtime.Extensions
         public static MemberSetter<TTarget, TValue> DelegateForSet<TTarget, TValue>(this FieldInfo field)
         {
             int key = GetKey<TTarget, TValue>(field, kFieldSetterName);
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (MemberSetter<TTarget, TValue>)result;
 
             return GenDelegateForMember<MemberSetter<TTarget, TValue>, FieldInfo>(
@@ -165,8 +160,7 @@ namespace Vexe.Runtime.Extensions
         public static MethodCaller<TTarget, TReturn> DelegateForCall<TTarget, TReturn>(this MethodInfo method)
         {
             int key = GetKey<TTarget, TReturn>(method, kMethodCallerName);
-            Delegate result;
-            if (cache.TryGetValue(key, out result))
+            if (cache.TryGetValue(key, out Delegate result))
                 return (MethodCaller<TTarget, TReturn>)result;
 
             return GenDelegateForMember<MethodCaller<TTarget, TReturn>, MethodInfo>(
@@ -187,8 +181,7 @@ namespace Vexe.Runtime.Extensions
         /// </summary>
         public static void SafeInvoke<TTarget, TValue>(this MethodCaller<TTarget, TValue> caller, TTarget target, params object[] args)
         {
-            if (caller != null)
-                caller(target, args);
+            caller?.Invoke(target, args);
         }
 
         /// <summary>
@@ -196,8 +189,7 @@ namespace Vexe.Runtime.Extensions
         /// </summary>
         public static void SafeInvoke<TTarget, TValue>(this MemberSetter<TTarget, TValue> setter, ref TTarget target, TValue value)
         {
-            if (setter != null)
-                setter(ref target, value);
+            setter?.Invoke(ref target, value);
         }
 
         /// <summary>
@@ -238,14 +230,14 @@ namespace Vexe.Runtime.Extensions
 
             var weakTyping = typeof(TTarget) == typeof(object);
 
-            Func<string, Type, Type[], ILGenerator> buildMethod = (methodName, returnType, parameterTypes) =>
+            ILGenerator buildMethod(string methodName, Type returnType, Type[] parameterTypes)
             {
                 var methodBuilder = typeBuilder.DefineMethod(methodName,
                     MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static,
                     CallingConventions.Standard,
                     returnType, parameterTypes);
                 return methodBuilder.GetILGenerator();
-            };
+            }
 
             if (field != null)
             {
@@ -553,6 +545,7 @@ namespace Vexe.Runtime.Extensions
         {
             public ILGenerator il;
 
+#pragma warning disable IDE1006 // Naming Styles
             public ILEmitter ret() { il.Emit(OpCodes.Ret); return this; }
             public ILEmitter cast(Type type) { il.Emit(OpCodes.Castclass, type); return this; }
             public ILEmitter box(Type type) { il.Emit(OpCodes.Box, type); return this; }
@@ -619,6 +612,7 @@ namespace Vexe.Runtime.Extensions
             public ILEmitter ifclass_ldloc_else_ldloca(int idx, Type type) { if (type.IsValueType) emit.ldloca(idx); else emit.ldloc(idx); return this; }
             public ILEmitter perform(Action<ILEmitter, MemberInfo> action, MemberInfo member) { action(this, member); return this; }
             public ILEmitter ifbyref_ldloca_else_ldloc(LocalBuilder local, Type type) { if (type.IsByRef) ldloca(local); else ldloc(local); return this; }
+#pragma warning restore IDE1006 // Naming Styles
         }
     }
 }
