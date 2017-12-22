@@ -8,6 +8,7 @@ using System.Linq;
 using NArctic;
 using Utilities;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NArctic
 {
@@ -146,7 +147,7 @@ namespace NArctic
 			return offset;
 		}
 
-		public void ToBuffer<T>(byte[] buf, T[] data, int ofs, int iheight, int icol) {
+		public void FillBufferFromData<T>(byte[] buf, T[] data, int ofs, int iheight, int icol) {
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
@@ -158,11 +159,11 @@ namespace NArctic
 			ghdst.Free ();
 		}
 
-		public unsafe void FromBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
+		public unsafe void FillDataFromBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
-			int elsize = typeof(T) == typeof(char[]) ? System.Runtime.InteropServices.Marshal.SizeOf(typeof(char)) * dtype.Size : System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+			int elsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
 			GCHandle ghsrc = GCHandle.Alloc (buf, GCHandleType.Pinned);
 			GCHandle ghdst = GCHandle.Alloc (data, GCHandleType.Pinned);
 			UnsafeAPI.ColumnCopy(ghdst.AddrOfPinnedObject(), 0, elsize, ghsrc.AddrOfPinnedObject(), fieldOffset, bytesPerRow, iheight, elsize);
@@ -170,7 +171,19 @@ namespace NArctic
 			ghdst.Free ();
 		}
 
-		public string ToString(object value)
+        public void FillDataFromBufferSlow<T>(byte[] buf, T[] data, int iheight, int icol, Func<byte[], int, int, T> byteConverter)
+        {
+            var bytesPerRow = this.FieldOffset(this.Fields.Count);
+            var dtype = this.Fields[icol];
+            var fieldOffset = this.FieldOffset(icol);
+
+            for (int i = 0; i < buf.Length; i += bytesPerRow)
+            {
+                data[(i / bytesPerRow)] = byteConverter(buf, i + fieldOffset, dtype.Size);
+            }
+        }
+
+        public string ToString(object value)
 		{
 			var fmt = Format ?? Formats.Get(value.GetType()) ?? "{0}";
 			return fmt.Args (value);
