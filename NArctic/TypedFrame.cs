@@ -36,7 +36,7 @@ namespace NArctic
             return Enqueue(value) >= 0;
         }
 
-        public T Dequeue()
+        public new T Dequeue()
         {
             int r = base.Dequeue();
             if (r < 0)
@@ -147,26 +147,26 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    SetProperty<T, double>(ref obj, pi,  df[i].As<double>()[row]);
+                    SetProperty(ref obj, pi,  df[i].As<double>()[row]);
                 else if (pi.PropertyType == typeof(long))
-                    SetProperty<T, long>(ref obj, pi, df[i].As<long>()[row]);
+                    SetProperty(ref obj, pi, df[i].As<long>()[row]);
                 else if (pi.PropertyType == typeof(int))
-                    SetProperty<T, int>(ref obj, pi, df[i].As<int>()[row]);
+                    SetProperty(ref obj, pi, df[i].As<int>()[row]);
                 else if (pi.PropertyType == typeof(DateTime))
-                    SetProperty<T,DateTime>(ref obj, pi, df[i].As<DateTime>()[row]);
+                    SetProperty(ref obj, pi, df[i].As<DateTime>()[row]);
 
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }
             return obj;
         }
 
-        public Q GetProperty<T, Q>(T obj, PropertyInfo pi)
+        public Q GetProperty<Q>(T obj, PropertyInfo pi)
         {
             //return (Q) pi.GetValue(obj);
             return pi.DelegateForGet<T, Q>()(obj);
         }
 
-        public void SetProperty<T, Q>(ref T obj, PropertyInfo pi, Q value)
+        public void SetProperty<Q>(ref T obj, PropertyInfo pi, Q value)
         {
             //pi.SetValue(obj, value);
             pi.DelegateForSet<T, Q>()(ref obj, value);
@@ -178,13 +178,13 @@ namespace NArctic
             {
                 var pi = Props[Keys[i]];
                 if (pi.PropertyType == typeof(double))
-                    df[i].As<double>()[row] = GetProperty<T, double>(obj, pi);
+                    df[i].As<double>()[row] = GetProperty<double>(obj, pi);
                 else if (pi.PropertyType == typeof(long))
-                    df[i].As<long>()[row] = GetProperty<T, long>(obj, pi);
+                    df[i].As<long>()[row] = GetProperty<long>(obj, pi);
                 else if (pi.PropertyType == typeof(int))
-                    df[i].As<int>()[row] = GetProperty<T, int>(obj, pi);
+                    df[i].As<int>()[row] = GetProperty<int>(obj, pi);
                 else if (pi.PropertyType == typeof(DateTime))
-                    df[i].As<DateTime>()[row] = GetProperty<T, DateTime>(obj, pi);
+                    df[i].As<DateTime>()[row] = GetProperty<DateTime>(obj, pi);
 
                 else throw new InvalidOperationException("unsupported type {0}".Args(pi.PropertyType));
             }

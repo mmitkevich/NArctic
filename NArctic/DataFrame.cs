@@ -1,20 +1,11 @@
 ﻿using System;
 using System.Linq;
-using NumCIL.Generic;
 using System.Collections.Generic;
-using NumCIL.Generic;
-using MongoDB.Driver;
-using System.Windows.Markup;
 using NumCIL;
-using System.Runtime.InteropServices;
 using Utilities;
-using NumCIL.Boolean;
 using System.Collections;
 using System.Text;
-using MongoDB.Driver.Core.WireProtocol.Messages;
 using MongoDB.Bson;
-using Utilities;
-using NumCIL;
 using System.IO;
 
 namespace NArctic
@@ -41,9 +32,8 @@ namespace NArctic
                 s.Name = this.Series.Count.ToString();
 			this.Series.Add (s);
             this.SeriesByName[s.Name] = s;
-            if(SeriesListChanged!=null)
-			    SeriesListChanged(this, new Series[0], new Series[] { s });
-			this.DType.Fields.Add (s.DType);
+            SeriesListChanged?.Invoke(this, new Series[0], new Series[] { s });
+            this.DType.Fields.Add (s.DType);
             s.DType.Parent = this.DType;
 			return this.Series.Count - 1;
 		}
@@ -518,10 +508,12 @@ namespace NArctic
 
         public DataFrame Clone() 
 		{
-			var df = new DataFrame (this.Columns.Select(x=>x.Clone()), index:this.Index.Unwrap(i=>i.Name));
-            df.Metadata = this.Metadata.DeepClone().AsBsonDocument;
-            df.Name = this.Name;
-			return df;
+            var df = new DataFrame(this.Columns.Select(x => x.Clone()), index: this.Index.Unwrap(i => i.Name))
+            {
+                Metadata = this.Metadata.DeepClone().AsBsonDocument,
+                Name = this.Name
+            };
+            return df;
 		}
 
 		public void OnColumnsChanged(SeriesList series, IEnumerable<Series> removed, IEnumerable<Series> added)
@@ -531,9 +523,11 @@ namespace NArctic
 
 		public DataFrame this [Range range] {
 			get {
-                var rtn = new DataFrame(Columns.Select(c=>c[range]), index:this.Index.Unwrap(i=>i.Name));
-                rtn.Metadata = this.Metadata;
-                rtn.Name = this.Name;
+                var rtn = new DataFrame(Columns.Select(c => c[range]), index: this.Index.Unwrap(i => i.Name))
+                {
+                    Metadata = this.Metadata,
+                    Name = this.Name
+                };
                 return rtn;
 
             }
@@ -588,7 +582,7 @@ namespace NArctic
 			if(buf.Length < bytesPerRow*iheight)
 				throw new InvalidOperationException("buf length is {0} but {1} expected".Args(buf.Length, bytesPerRow*iheight));
 			for (int i = 0; i < buftype.Fields.Count; i++) {
-				var s = Series.FromBuffer (buf, buftype, iheight, i); 
+				var s = Series.FromBufferByType(buf, buftype, iheight, i); 
 				s.Name = buftype.Fields[i].Name ?? "[{0}]".Args (i);
 				df.Columns.Add (s);
 				df.Rows.Count = Math.Max (df.Rows.Count, s.Count);

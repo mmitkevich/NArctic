@@ -6,12 +6,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using System.Linq;
-using System.IO;
 using NumCIL;
-using System.ComponentModel;
 using Utilities;
-using MongoDB.Bson.IO;
-using MongoDB.Bson.Serialization.IdGenerators;
 using Serilog;
 using System.Security.Cryptography;
 
@@ -159,7 +155,7 @@ namespace NArctic
 			var df = DataFrame.FromBuffer(buf.GetBytes(), buftype, nrows);
             var meta = version["dtype_metadata"].AsBsonDocument;
             var index_name = meta.GetValue("index", new BsonArray()).AsBsonArray[0];
-            if (index_name != null) {
+            if (index_name != null && df.Columns.Contains(index_name.AsString)) {
                 df.Index = df.Columns[index_name.AsString];
             }
             df.Metadata = metadata;
@@ -339,7 +335,7 @@ namespace NArctic
                     await _versions.ReplaceOneAsync(BF.Eq("symbol", symbol), version, Upsert);
                 }catch(MongoWriteException e)
                 {
-                    Log.Information("Retrying append symbol {symbol}, attempt {attemptNo}", symbol, attemptNo++);
+                    Log.Information(e, "Retrying append symbol {symbol}, attempt {attemptNo}", symbol, attemptNo++);
                     continue;
                 }
                 await _segments.InsertOneAsync(segment);

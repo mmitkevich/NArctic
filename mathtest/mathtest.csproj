@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -28,11 +28,17 @@
     <Externalconsole>true</Externalconsole>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Meta.Numerics, Version=3.0.0.0, Culture=neutral, PublicKeyToken=67d25c65a6631347, processorArchitecture=MSIL">
+      <HintPath>..\packages\Meta.Numerics.3.0.0\lib\Meta.Numerics.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
