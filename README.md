@@ -1,7 +1,6 @@
 # NArctic
-## Warning, Work in progress.
 
-This is very preliminar experiments to port [arctic database](https://github.com/manahl/arctic/) to .net/mono
+This is a port of [Arctic](https://github.com/manahl/arctic/) to .net/mono
 
 ## Status
 
@@ -12,17 +11,13 @@ For usage examples see `NArctic.Tests/Program.cs`
 
 ## Performance
 
-Original python/numpy arctic had performance about 4 million reads per second on my i7 ssd laptop.
-Ported .net version performs 2 times slower, about 2 million reads per second.
+This port takes at least twice as long as the original python/numpy version
 
 ## Dependencies:
 
-[NumCIL](https://github.com/bh107/bohrium/tree/master/bridge/NumCIL/NumCIL))
-[Meta-Numerics](https://github.com/cureos/metanumerics)
+ * [NumCIL](https://github.com/bh107/bohrium/tree/master/bridge/NumCIL/NumCIL))
+ * [Meta-Numerics](https://github.com/cureos/metanumerics)
 
-## License: LGPL
+## License
 
-Note: Planned license is BSD, but bohrium code currently included in the source tree, so it should be LGPL
-
-
-
+NArctic is licensed under the GNU LGPL v2.1.  A copy of which is included in [LICENSE](LICENSE)
