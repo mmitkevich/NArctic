@@ -63,7 +63,6 @@ namespace NArctic
 					continue;
 				}
 			}
-			return k;
 		}
 
 		private int Match (string str, int i, string pattern) {
@@ -148,34 +147,49 @@ namespace NArctic
 				i += kk; k += kk;
 				return k;
 			}
-			string val;
-			if ((kk = String(str, i, out val))>0) { 
-				if (val == "<f8") {
-					cur.Type = typeof(double);
+            if ((kk = String(str, i, out string val)) > 0)
+            {
+                if (val == "<f8")
+                {
+                    cur.Type = typeof(double);
                     if (sizeof(double) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;
-				} else if (val == "<i8") {
-					cur.Type = typeof(long);
+                }
+                else if (val == "<i8")
+                {
+                    cur.Type = typeof(long);
                     if (sizeof(long) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;
-				} else if (val == "<i4") {
-					cur.Type = typeof(int);
+                }
+                else if (val == "<i4")
+                {
+                    cur.Type = typeof(int);
                     if (sizeof(int) != 4)
                         throw new InvalidOperationException();
-					cur.Size = 4;
-				} else if (val == "<M8[ns]") {
-					cur.Type = typeof(DateTime);
+                    cur.Size = 4;
+                }
+                else if (val == "<M8[ns]")
+                {
+                    cur.Type = typeof(DateTime);
                     if (sizeof(long) != 8)
                         throw new InvalidOperationException();
                     cur.Size = 8;
-				}else
-					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (val));
-				i += kk;k += kk;
-				return k;
-			}
-			BadChar (str, i, "\'[");
+                }
+                else if (val.StartsWith("S"))
+                {
+                    cur.Type = typeof(string);
+                    if (!int.TryParse(val.Remove(0, 1), out int size))
+                        throw new InvalidOperationException();
+                    cur.Size = size;
+                }
+                else
+                    throw new InvalidOperationException("unknown numpy dtype '{0}'".Args(val));
+                i += kk; k += kk;
+                return k;
+            }
+            BadChar (str, i, "\'[");
 			return k;
 		}
 	}

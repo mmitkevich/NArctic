@@ -8,6 +8,7 @@ using System.Linq;
 using NArctic;
 using Utilities;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NArctic
 {
@@ -146,7 +147,7 @@ namespace NArctic
 			return offset;
 		}
 
-		public void ToBuffer<T>(byte[] buf, T[] data, int ofs, int iheight, int icol) {
+		public void FillBufferFromData<T>(byte[] buf, T[] data, int ofs, int iheight, int icol) {
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
@@ -158,7 +159,7 @@ namespace NArctic
 			ghdst.Free ();
 		}
 
-		public unsafe void FromBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
+		public unsafe void FillDataFromBuffer<T>(byte[] buf, T[] data, int iheight, int icol) {
 			var bytesPerRow = this.FieldOffset (this.Fields.Count);
 			var fieldOffset = this.FieldOffset (icol);
 			var dtype = this.Fields[icol];
@@ -170,7 +171,19 @@ namespace NArctic
 			ghdst.Free ();
 		}
 
-		public string ToString(object value)
+        public void FillDataFromBufferSlow<T>(byte[] buf, T[] data, int iheight, int icol, Func<byte[], int, int, T> byteConverter)
+        {
+            var bytesPerRow = this.FieldOffset(this.Fields.Count);
+            var dtype = this.Fields[icol];
+            var fieldOffset = this.FieldOffset(icol);
+
+            for (int i = 0; i < buf.Length; i += bytesPerRow)
+            {
+                data[(i / bytesPerRow)] = byteConverter(buf, i + fieldOffset, dtype.Size);
+            }
+        }
+
+        public string ToString(object value)
 		{
 			var fmt = Format ?? Formats.Get(value.GetType()) ?? "{0}";
 			return fmt.Args (value);
@@ -195,8 +208,10 @@ namespace NArctic
                     return "<i4";
                 else if (Type == typeof(DateTime))
 					return "<M8[ns]";
-				else
-					throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
+                else if (Type == typeof(string))
+                    return $"S{Size}";
+                else
+                    throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
 			}
 				
 		}
