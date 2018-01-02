@@ -59,9 +59,6 @@
     <Reference Include="MongoDB.Driver.Core, Version=2.4.4.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MongoDB.Driver.Core.2.4.4\lib\net45\MongoDB.Driver.Core.dll</HintPath>
     </Reference>
-    <Reference Include="NMem">
-      <HintPath>..\NMem\NMem.dll</HintPath>
-    </Reference>
     <Reference Include="Serilog, Version=1.5.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
       <HintPath>..\packages\Serilog.1.5.14\lib\net45\Serilog.dll</HintPath>
     </Reference>
@@ -94,6 +91,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\NMem\NMem.csproj">
+      <Project>{2dd0ded1-79d0-420a-8759-34eade731956}</Project>
+      <Name>NMem</Name>
+    </ProjectReference>
     <ProjectReference Include="..\NumCIL\NumCIL\NumCIL.csproj">
       <Project>{08C17283-4F2A-466C-AE28-1923837A2F58}</Project>
       <Name>NumCIL</Name>
