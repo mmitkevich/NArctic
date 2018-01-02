@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using Utilities;
 
 namespace NArctic
@@ -149,6 +150,13 @@ namespace NArctic
 			}
             if ((kk = String(str, i, out string val)) > 0)
             {
+                if (val.StartsWith("<"))
+                    cur.Endian = EndianType.Little;
+                else if(val.StartsWith(">"))
+                    cur.Endian = EndianType.Big;
+                else if(val.StartsWith("="))
+                    cur.Endian = EndianType.Native;
+
                 if (val == "<f8")
                 {
                     cur.Type = typeof(double);
@@ -177,12 +185,21 @@ namespace NArctic
                         throw new InvalidOperationException();
                     cur.Size = 8;
                 }
-                else if (val.StartsWith("S"))
+                else if (val.ToUpper().Contains("S"))
                 {
                     cur.Type = typeof(string);
                     if (!int.TryParse(val.Remove(0, 1), out int size))
                         throw new InvalidOperationException();
                     cur.Size = size;
+                    cur.EncodingStyle = Encoding.UTF8;
+                }
+                else if (val.ToUpper().Contains("U"))
+                {
+                    cur.Type = typeof(string);
+                    if (!int.TryParse(val.Remove(0, 2), out int size))
+                        throw new InvalidOperationException();
+                    cur.Size = size * 4;
+                    cur.EncodingStyle = Encoding.Unicode;
                 }
                 else
                     throw new InvalidOperationException("unknown numpy dtype '{0}'".Args(val));
