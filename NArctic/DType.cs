@@ -89,6 +89,8 @@ namespace NArctic
 
     }
 
+    public enum EndianType { Native, Big, Little } 
+
 	public class DType
 	{
 		public Type Type;
@@ -96,6 +98,8 @@ namespace NArctic
 		public DType Parent;
 		public string Name;
 		public int Size;
+        public EndianType Endian = EndianType.Native;
+        public Encoding EncodingStyle;
 		public string Format = null;
 		public static Dictionary<Type,string> Formats = new Dictionary<Type,string> ();
 		public static string sep = ", ";
@@ -189,6 +193,22 @@ namespace NArctic
 			return fmt.Args (value);
 		}
 
+        private string ToString(EndianType endian)
+        {
+            switch(endian)
+            {
+                case EndianType.Native:
+                    return "=";
+                case EndianType.Little:
+                    return "<";
+                case EndianType.Big:
+                    return ">";
+                default:
+                    throw new InvalidOperationException();
+            }
+            
+        }
+
 		public override string ToString ()
 		{
 			if (Type == null) {
@@ -208,8 +228,10 @@ namespace NArctic
                     return "<i4";
                 else if (Type == typeof(DateTime))
 					return "<M8[ns]";
-                else if (Type == typeof(string))
-                    return $"S{Size}";
+                else if (Type == typeof(string) && EncodingStyle == Encoding.UTF8)
+                    return $"{ToString(Endian)}S{Size}";
+                else if (Type == typeof(string) && EncodingStyle == Encoding.Unicode)
+                    return $"{ToString(Endian)}U{Size}";
                 else
                     throw new InvalidOperationException ("unknown numpy dtype '{0}'".Args (Type));
 			}
