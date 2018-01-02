@@ -547,12 +547,14 @@ namespace NArctic
 
         public Series(T[] data, DType dtype = null, string name = null) : this(new NdArray<T>(data), dtype)
         {
-            Name = name;
+            if(!string.IsNullOrEmpty(name))
+                Name = name;
         }
 
         public Series(IEnumerable<T> data, string name = null) : this(new NdArray<T>(data.ToArray()))
         {
-            Name = name;
+            if (!string.IsNullOrEmpty(name))
+                Name = name;
         }
 
         public static implicit operator Series<T>(NdArray<T> values)
