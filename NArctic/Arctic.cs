@@ -27,16 +27,11 @@ namespace NArctic
         public static string PREFIX = "arctic_";
         public string Name;
 
-		public Arctic(MongoClient mongo, string lib, bool purge=false)
+		public Arctic(MongoClient mongo, string lib)
 		{
             string[] items = lib.Split(new[] { '.' }, 2);
             var db = PREFIX+items[0];
             this.Mongo = mongo;
-            if (purge)
-            {
-                Log.Information("Dropped database '{database}'", db);
-                //this.Mongo.DropDatabase(db);
-            }
             this.Db = mongo.GetDatabase(db);
             var name = items[1];
             Console.WriteLine("Connected mongo lib='{0}' db='{1}'".Args(lib, db));
