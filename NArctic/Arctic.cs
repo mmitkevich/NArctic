@@ -43,6 +43,9 @@ namespace NArctic
 
         public List<Tuple<DateTime,long>> GetSegmentsIndex(BsonDocument version)
         {
+            if (!version.Contains("segment_index"))
+                return null;
+
             var result = new List<Tuple<DateTime, long>>();
 
             var seg_ind_buf = new ByteBuffer();
@@ -99,7 +102,7 @@ namespace NArctic
             int start_segment = 0;
             int end_segment = -1;
 
-            if (range != null)
+            if (index!=null && range != null)
             {
                 foreach (var t in index)
                 {
