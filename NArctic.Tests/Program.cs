@@ -88,7 +88,15 @@ namespace NArctic.Tests
 
 		public static void TestWriteArctic(string lib="net.securities", string host="localhost", bool purge=true, bool del=true, string symbol="S1") {
 			var driver = new MongoClient ("mongodb://"+host);
-			var arctic = new Arctic (driver, lib, purge:purge);
+
+            if (purge)
+            {
+                string[] items = lib.Split(new[] { '.' }, 2);
+                var db = Arctic.PREFIX + items[0];
+                driver.DropDatabase(db);
+            }
+
+            var arctic = new Arctic (driver, lib);
 
 			if(del) {
 				var delcnt = arctic.DeleteAsync(symbol).Result;
@@ -183,7 +191,15 @@ namespace NArctic.Tests
         public static void TestArcticDateTimeIndex(string lib = "net.securities", string host = "localhost", bool purge = true, bool del = true, string symbol = "S1")
         {
             var driver = new MongoClient("mongodb://" + host);
-            var arctic = new Arctic(driver, lib, purge: purge);
+
+            if (purge)
+            {
+                string[] items = lib.Split(new[] { '.' }, 2);
+                var db = Arctic.PREFIX + items[0];
+                driver.DropDatabase(db);
+            }
+
+            var arctic = new Arctic(driver, lib);
 
             if (del)
             {
@@ -231,7 +247,14 @@ namespace NArctic.Tests
         public static void TestMetadata(string lib = "net.securities", string host = "localhost", bool purge = true, bool del = true, string symbol = "S1")
         {
             var driver = new MongoClient("mongodb://" + host);
-            var arctic = new Arctic(driver, lib, purge: purge);
+            if (purge)
+            {
+                string[] items = lib.Split(new[] { '.' }, 2);
+                var db = Arctic.PREFIX + items[0];
+                driver.DropDatabase(db);
+            }
+
+            var arctic = new Arctic(driver, lib);
 
             if (del)
             {
