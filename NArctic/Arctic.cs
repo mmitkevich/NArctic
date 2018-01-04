@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using System.Linq;
 using NumCIL;
 using Utilities;
-using Serilog;
 using System.Security.Cryptography;
 
 namespace NArctic
@@ -66,14 +65,18 @@ namespace NArctic
 
         public async Task<BsonDocument> ReadVersionAsync(string symbol)
 		{
-			Log.Debug("reading {symbol} version", symbol);
-			IAsyncCursorSource<BsonDocument> versions = this._versions.AsQueryable ()
+#if LOG
+            Log.Debug("reading {symbol} version", symbol);
+#endif
+            IAsyncCursorSource<BsonDocument> versions = this._versions.AsQueryable ()
 				.Where (x => x ["symbol"] == symbol)
 				.OrderByDescending (x => x ["version"])
 				.Take(1);
 			var rtn =  await versions.FirstOrDefaultAsync<BsonDocument>();
-			Log.Debug("read {0} version: {1}".Args (symbol, rtn));
-			return rtn;
+#if LOG
+            Log.Debug("read {0} version: {1}".Args (symbol, rtn));
+#endif
+            return rtn;
 		}
 
         public DataFrame Read(string symbol, DateRange daterange=null, BsonDocument version=null)
@@ -88,7 +91,9 @@ namespace NArctic
 
             if (version == null)
 				return null;
+#if LOG
             Log.Debug("version: {0}".Args(version));
+#endif
 
             var buf = new ByteBuffer ();
 			
@@ -149,7 +154,9 @@ namespace NArctic
 			var dtype = version ["dtype"].AsString;
 			var buftype = new DType (dtype);
 			var bytes = buf.GetBytes ();
+#if LOG
 			Log.Debug ("converting to dataframe up_to={0} dtype={1} len={2}".Args (nrows, dtype, bytes.Length));
+#endif
 			var df = DataFrame.FromBuffer(buf.GetBytes(), buftype, nrows);
             var meta = version["dtype_metadata"].AsBsonDocument;
             var index_name = meta.GetValue("index", new BsonArray()).AsBsonArray[0];
@@ -218,7 +225,9 @@ namespace NArctic
                     .FirstOrDefaultAsync ();*/
 
                 var dtype = version.GetValue("dtype", "").ToString();
+#if LOG
                 Log.Debug("loaded dtype {0}", dtype);
+#endif
                 if (dtype != "" && df.DType.ToString() != dtype)
                 {
                     // dtype changed. need reload old data and repack it.
@@ -230,7 +239,9 @@ namespace NArctic
                 version["metadata"] = df.Metadata;
 
                 version["dtype"] = sdt;
+#if LOG
                 Log.Debug("saved dtype {0}", sdt);
+#endif
 
                 version["shape"] = new BsonArray { { -1 } };
                 version["dtype_metadata"] = new BsonDocument {
@@ -258,12 +269,16 @@ namespace NArctic
                         var range = df.Index.AsDateTime().RangeOf(dt, 0, df.FilledCount-1, Location.GT);
                         if (range.Last <= range.First)
                         {
+#if LOG
                             Log.Information($"Skipped DataFrame.Append because date {dt} already written for {symbol}");
+#endif
                             return null; // Hey all was skipped
                         }
                         else if (range.First != 0)
                         {
+#if LOG
                             Log.Information($"Skipped DataFrame.Append initial {range.First} elements date {dt} already written for {symbol}");
+#endif
                         }
                         df = df[range];
                     }
@@ -333,7 +348,9 @@ namespace NArctic
                     await _versions.ReplaceOneAsync(BF.Eq("symbol", symbol), version, Upsert);
                 }catch(MongoWriteException e)
                 {
+#if LOG
                     Log.Information(e, "Retrying append symbol {symbol}, attempt {attemptNo}", symbol, attemptNo++);
+#endif
                     continue;
                 }
                 await _segments.InsertOneAsync(segment);
