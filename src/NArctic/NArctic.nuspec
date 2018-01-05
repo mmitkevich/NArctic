@@ -11,6 +11,6 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A port of the python Arctic library to DotNet</description>
     <copyright>Copyright Man Group plc 2018</copyright>
-    <tags>Arctic C# MongoDb DotNet</tags
+    <tags>Arctic C# MongoDb DotNet</tags>
   </metadata>
 </package>
