@@ -10,7 +10,6 @@
     <projectUrl>https://github.com/manahl/NArctic</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A port of the python Arctic library to DotNet</description>
-    <releaseNotes>Summary of changes made in this release of the package.</releaseNotes>
     <copyright>Copyright Man Group plc 2018</copyright>
     <tags>Arctic C# MongoDb DotNet</tags>
   </metadata>
