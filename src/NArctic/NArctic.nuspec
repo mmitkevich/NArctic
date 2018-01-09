@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>ManAhl.NArctic</id>
+    <version>$version$</version>
+    <title>NArctic</title>
+    <authors>Cronan</authors>
+    <owners>Cronan</owners>
+    <licenseUrl>https://github.com/manahl/NArctic/blob/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/manahl/NArctic</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>A port of the python Arctic library to DotNet</description>
+    <copyright>Copyright Man Group plc 2018</copyright>
+    <tags>Arctic C# MongoDb DotNet</tags>
+  </metadata>
+</package>
